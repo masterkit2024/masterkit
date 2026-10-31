@@ -80,7 +80,7 @@ def sub(f, t0, t1, amp=0.25, a=0.8, r=1.2):
     x = np.sin(2 * np.pi * f * t) + 0.25 * np.sin(2 * np.pi * 2 * f * t)
     hold = np.ones(n); k = int((t1 - t0) * SR)
     if k < n: hold[k:] = np.linspace(1, 0, n - k) ** 2
-    put(music, t0, x * np.minimum(1, t / a) ** 2 * hold, amp)
+    put(music, t0, x * np.minimum(1, t / a) ** 2 * hold, amp * 0.7)
 
 def pluck(m, t0, amp=0.1, dec=0.9, pan=0.0, bright=1.0, buf=None):
     t = T(dec * 3); f = midi(m)
@@ -349,4 +349,6 @@ def wr(path, x):
     with wave.open(path, 'wb') as w: w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(d.tobytes())
 wr(os.path.join(out_dir, 'mix.wav'), mix)
 wr(os.path.join(out_dir, 'bed.wav'), bed / np.abs(bed).max() * 0.8)
+if os.environ.get('STEMS'):
+    wr(os.path.join(out_dir, 'music.wav'), music / np.abs(music).max() * 0.8); wr(os.path.join(out_dir, 'sfx.wav'), sfx / np.abs(sfx).max() * 0.8)
 print('ok', np.abs(mix).max(), 'voice rms', np.sqrt((voice ** 2).mean()), 'bed rms', np.sqrt((bed ** 2).mean()))

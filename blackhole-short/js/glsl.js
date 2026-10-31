@@ -139,7 +139,7 @@ vec3 starSurface(vec3 n, vec3 d, vec3 col, float I, float seed){
   float mu=max(dot(n,-d),0.);
   float g=fbm(n*9.+vec3(seed,uTime*0.05,0.));
   float g2=vnoise(n*38.+uTime*0.3+seed);
-  float spots=smoothstep(0.72,0.8,fbm3(n*3.+seed*3.));
+  float spots=seed>5.?0.:smoothstep(0.72,0.8,fbm3(n*3.+seed*3.));
   float limb=0.35+0.65*pow(mu,0.55);
   vec3 c=col*(0.55+0.75*g+0.25*g2)*limb*(1.-0.6*spots);
   c=mix(c, c*vec3(1.,0.6,0.35), 1.-mu);
@@ -188,6 +188,7 @@ vec3 shadePlanet(vec4 P, vec4 inf, vec4 inf2, vec3 p, vec3 d, out float alphaOut
     ground=mix(ground,vec3(.4,.35,.3),hgt*0.6);
     float polar=smoothstep(.72,.8,abs(lat)+0.06*fbm3(nr*6.));
     alb=mix(ocean,ground,land);
+    alb*=0.82+0.36*fbm3(nr*26.)*mix(0.4,1.,land);
     // freezing from poles toward equator
     float fr=ice*1.15;
     float frozen=smoothstep(1.-fr, 1.-fr+0.12, abs(lat)+0.12*fbm(nr*7.))*step(0.001,ice);
@@ -383,7 +384,7 @@ vec3 renderSurfaceSky(vec3 d, vec2 frag){
   float sd=max(dot(d,uSunDir),0.);
   day+=vec3(1.,.85,.6)*pow(sd,8.)*0.2*uSunDisk;
   vec3 night=skyCol(d)*1.4+brightStars(d)+vec3(.01,.015,.03)*(1.-h);
-  vec3 sky=mix(night,day*1.2,uDay);
+  vec3 sky=mix(night,day*0.95,uDay);
   // clouds
   if(h>0.02){
     vec2 cp=d.xz/h*1.3+vec2(uTime*0.03,0.);
@@ -394,7 +395,7 @@ vec3 renderSurfaceSky(vec3 d, vec2 frag){
   // sun disk
   float sang=acos(clamp(dot(d,uSunDir),-1.,1.));
   float disk=smoothstep(0.03,0.026,sang);
-  sky+=vec3(1.,.93,.8)*disk*5.*uSunDisk + vec3(1.,.8,.55)*(exp(-sang/0.04)*0.9+exp(-sang/0.25)*0.25)*uSunDisk;
+  sky+=vec3(1.,.93,.8)*disk*5.*uSunDisk + vec3(1.,.8,.55)*(exp(-sang/0.03)*0.7+exp(-sang/0.12)*0.08)*uSunDisk;
   if(h<hills){
     float g=fbm3(vec3(az*30.,h*30.,0.));
     vec3 ground=mix(vec3(.004,.006,.008),vec3(.015,.03,.025)*(0.6+0.5*g),uDay);
@@ -417,9 +418,9 @@ vec3 renderUnder(vec2 uv){
   bool inChim=abs(x-vx)<chim && y<ventTop+0.03*vnoise(vec3(x*20.,0.,0.)) && y>bed-0.5;
   vec3 dir=normalize(vec3(uv.x*0.5,0.4+uv.y*0.3,1.));
   if(y>iceTop){
-    col=skyCol(normalize(vec3(uv.x*0.6,0.6+uv.y*0.4,-1.)))*1.2+brightStars(normalize(vec3(uv.x*0.6,0.6+uv.y*0.4,-1.)))*0.9;
-    // frozen horizon haze
-    col+=vec3(.08,.12,.2)*exp(-(y-iceTop)/0.25)*0.5;
+    vec3 sd=normalize(vec3(uv.x*0.6,0.6+uv.y*0.4,-1.));
+    col=vec3(.004,.008,.02)+brightStars(sd)*0.9+skyCol(sd)*0.25;
+    col+=vec3(.06,.1,.18)*exp(-(y-iceTop)/0.3)*0.6;
   } else if(y>iceBot){
     float f=fbm(vec3(x*3.,y*3.,1.));
     float cr=smoothstep(.49,.5,fbm(vec3(x*2.2,y*5.,7.)))-smoothstep(.5,.51,fbm(vec3(x*2.2,y*5.,7.)));
@@ -442,18 +443,20 @@ vec3 renderUnder(vec2 uv){
     }
   } else if(inChim){
     float s=fbm(vec3(x*12.,y*6.,3.));
-    col=vec3(.06,.045,.04)*(0.5+s)+vec3(.25,.12,.05)*0.15*uVent;
-    float hotCore=exp(-abs(x-vx)/0.05)*smoothstep(bed,ventTop,y);
-    col+=vec3(1.,.35,.08)*hotCore*0.3*uVent;
+    float s2=fbm(vec3(x*30.,y*10.,5.));
+    col=vec3(.03,.026,.025)*(0.4+s)*(0.6+0.6*s2);
+    float crk=1.-smoothstep(0.,0.04,abs(fbm(vec3(x*8.,y*3.,6.))-0.5));
+    col+=vec3(1.,.35,.08)*crk*0.5*uVent*smoothstep(bed,ventTop,y);
   } else {
     // crust / rock: darker with magma veins deeper
     float dd=bed-y;
     float s=fbm(vec3(x*4.,y*4.,9.));
-    col=vec3(.07,.05,.04)*(0.5+0.8*s)*exp(-dd*0.3);
-    float vein=1.-smoothstep(0.0,0.035,abs(fbm(vec3(x*1.5,y*1.5,2.)+0.)-0.5));
-    float heat=smoothstep(0.,4.,dd);
-    col+=vec3(1.,.32,.05)*vein*heat*1.1*uCore;
-    col+=vec3(1.,.25,.03)*smoothstep(2.,7.,dd)*0.25*uCore*(0.7+0.3*s);
+    float s2=fbm(vec3(x*14.,y*14.,4.));
+    col=vec3(.035,.03,.032)*(0.4+0.9*s)*(0.7+0.5*s2);
+    float vein=1.-smoothstep(0.0,0.03,abs(fbm(vec3(x*1.5,y*1.5,2.)+0.)-0.5));
+    float heat=smoothstep(0.3,4.,dd);
+    col+=vec3(1.,.32,.05)*vein*heat*1.2*uCore;
+    col+=vec3(1.,.22,.03)*smoothstep(2.5,8.,dd)*0.12*uCore*(0.5+0.5*s);
   }
   // vent plume (hot shimmering water above chimney)
   if(y>ventTop-0.05 && y<iceBot){
@@ -467,7 +470,7 @@ vec3 renderUnder(vec2 uv){
   }
   // vent light on surroundings
   float vd=length(vec2(x-vx,(y-ventTop)*1.3));
-  col+=vec3(1.,.42,.12)*0.18*exp(-vd/0.7)*uVent*(y<iceBot?1.:0.);
+  col+=vec3(1.,.42,.12)*0.10*exp(-vd/0.6)*uVent*(y<iceBot?1.:0.)*(inChim?0.3:1.);
   // bacteria glow
   if(uBact>0.&&y<iceBot){
     vec2 g=vec2(x,y)*vec2(40.,40.); vec2 c=floor(g); float bsum=0.;
@@ -482,7 +485,7 @@ vec3 renderUnder(vec2 uv){
         bsum+=(smoothstep(0.16,0.0,r)+0.08*exp(-r*1.5))*pulse;
       }
     }
-    col+=vec3(.25,1.,.75)*bsum*uBact*0.55;
+    col+=vec3(.25,1.,.75)*bsum*uBact*0.9;
   }
   return col;
 }

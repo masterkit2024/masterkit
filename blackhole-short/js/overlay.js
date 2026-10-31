@@ -166,9 +166,10 @@ function P(e,p){return project(e.cam,p,OW,OH);}
 function pinLabel(ctx,anchor,dx,dy,title,sub,alpha,col){
   if(!anchor||alpha<=0.003) return;
   const k=eOut(alpha);
-  setFont(ctx,56,800,FD); const tw=Math.max(ctx.measureText(sub).width, title.length*22);
+  setFont(ctx,56,800,FD); let tw=ctx.measureText(sub).width; setFont(ctx,30,700,FB); ctx.letterSpacing='6px'; tw=Math.max(tw,ctx.measureText(title).width); ctx.letterSpacing='0px';
   const roomR=OW-30-(anchor.x+Math.abs(dx)+52), roomL=(anchor.x-Math.abs(dx)-52)-30;
   if(dx>0&&roomR<tw&&roomL>roomR) dx=-dx; else if(dx<0&&roomL<tw&&roomR>roomL) dx=-dx;
+  if(anchor.y+dy>1120&&anchor.y+dy<1340) dy=(anchor.y+dy<1230)?1120-anchor.y-60:1340-anchor.y+60;
   let ax=anchor.x, ay=anchor.y, lx=ax+dx*k, ly=ay+dy*k;
   // clamp so text stays inside the frame
   if(dx>0){ const over=lx+52+tw-(OW-30); if(over>0) lx-=over; } else { const over=30-(lx-52-tw); if(over>0) lx+=over; }
@@ -322,7 +323,7 @@ function ovHook(ctx,e,t){
 function fmtTime(sec){sec=Math.max(0,Math.min(500,sec));const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
 function drawTimer(ctx,t){
   const sec=(t-T_COLL)/(T_ARRIVE-T_COLL)*500;
-  const a=sstep(6.05,6.45,t)*(1-sstep(13.0,13.4,t));
+  const a=sstep(6.3,6.65,t)*(1-sstep(13.0,13.4,t));
   const done=t>=T_ARRIVE;
   const pulse=done?Math.exp(-(t-T_ARRIVE)*4):0;
   const y=250;
@@ -384,14 +385,15 @@ function ovSize(ctx,e,t){
   const ga=sstep(13.35,13.8,t)*(1-sstep(15.6,16.2,t));
   if(ga>0){
     const r=1.2*c.s;
-    ctx.save(); ctx.globalAlpha=ga;
+    const gfade=clamp(1-(r-480)/300);
+    ctx.save(); ctx.globalAlpha=ga*gfade;
     ctx.setLineDash([18,14]); ctx.lineDashOffset=t*20; ctx.strokeStyle='rgba(255,200,120,0.8)'; ctx.lineWidth=3;
     ctx.beginPath(); ctx.arc(c.x,c.y,r,0,TAU); ctx.stroke(); ctx.setLineDash([]);
     const g=ctx.createRadialGradient(c.x,c.y,r*0.2,c.x,c.y,r); g.addColorStop(0,'rgba(255,170,60,0.0)'); g.addColorStop(1,'rgba(255,170,60,0.10)');
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(c.x,c.y,r,0,TAU); ctx.fill();
     ctx.restore();
-    glowText(ctx,'СОЛНЦЕ',c.x,c.y-r-110,{size:30,weight:700,fam:FB,track:10,color:'#FFD9A0',glow:'rgba(0,0,0,.7)',glowR:12,alpha:ga});
-    glowText(ctx,'1 392 000 км',c.x,c.y-r-58,{size:58,weight:800,color:'#FFE6C0',glow:'rgba(255,150,50,.5)',glowR:24,alpha:ga});
+    glowText(ctx,'СОЛНЦЕ',c.x,c.y-r-110,{size:30,weight:700,fam:FB,track:10,color:'#FFD9A0',glow:'rgba(0,0,0,.7)',glowR:12,alpha:ga*gfade});
+    glowText(ctx,'1 392 000 км',c.x,c.y-r-58,{size:58,weight:800,color:'#FFE6C0',glow:'rgba(255,150,50,.5)',glowR:24,alpha:ga*gfade});
     pinLabel(ctx,{x:c.x+6,y:c.y+6},150,210,'ЧЁРНАЯ ДЫРА','та же масса',ga*sstep(14.2,14.6,t),'#BFD4FF');
   }
   // ruler 6 km
@@ -452,7 +454,6 @@ function ovYear(ctx,e,t){
   glowText(ctx,String(n),OW/2,TY-10,{size:220,weight:900,color:done?'#FFFFFF':'#DDF0FF',glow:`rgba(110,190,255,${0.5+pulse*0.5})`,glowR:40+pulse*40,alpha:a,scale:1+pulse*0.08});
   glowText(ctx,'ДНЕЙ',OW/2,TY+140,{size:56,weight:800,track:16,color:'#8FD3FF',glow:'rgba(0,0,0,.6)',glowR:14,alpha:a});
   const ear=P(e,planetPos(EARTH,e.ov.days));
-  pinLabel(ctx,ear,140,90,'ЗЕМЛЯ','та же орбита',a*sstep(23.8,24.3,t)*(1-sstep(26.6,26.9,t)),'#8FC8FF');
 }
 
 function ovFreeze(ctx,e,t){
@@ -506,7 +507,7 @@ function ovMoon(ctx,e,t){
   if(a1>0){
     glowText(ctx,'только',OW/2,TY-120,{size:36,weight:700,fam:FB,track:6,color:'#E8E0D0',glow:'rgba(0,0,0,.7)',glowR:12,alpha:a1});
     kinetic(ctx,'ОТРАЖАЛА',OW/2,TY,{size:110,weight:900,color:'#FFF1D6',glow:'rgba(255,200,120,0.6)',glowR:30},riseAnim(t,37.3,39.45,0.03));
-    ctx.save(); ctx.translate(0,TY*2+128); ctx.scale(1,-1); ctx.globalAlpha=0.2;
+    ctx.save(); ctx.translate(0,TY*2+128); ctx.scale(1,-1); ctx.globalAlpha=0.12;
     kinetic(ctx,'ОТРАЖАЛА',OW/2,TY,{size:110,weight:900,color:'#FFF1D6',glow:'rgba(0,0,0,0)',glowR:0},riseAnim(t,37.3,39.45,0.03));
     ctx.restore();
     const g=ctx.createLinearGradient(0,TY+60,0,TY+170); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0)');
@@ -546,7 +547,7 @@ function ovUnder(ctx,e,t){
   lab(-0.6,-0.55,'ЛЕДЯНАЯ КОРКА','лёд',win(t,55.15,56.6,0.3),'#CFEFFF',160);
   lab(-0.4,-2.4,'ПОД НЕЙ','жидкая вода',win(t,56.3,58.0,0.3),'#7FC4FF',180);
   lab(0.2,-7.6,'НЕДРА ЗЕМЛИ','тепло',win(t,57.9,59.9,0.3),'#FFB070',-160);
-  lab(0.75,-5.75,'ГИДРОТЕРМАЛЬНЫЙ ИСТОЧНИК','бактерии',sstep(60.5,61.0,t)*(1-sstep(63.1,63.4,t)),'#7DFFC8',-140);
+  lab(0.75,-5.75,'У ИСТОЧНИКА','бактерии',sstep(60.5,61.0,t)*(1-sstep(63.1,63.4,t)),'#7DFFC8',-140);
   // depth gauge on left
   const ga=sstep(54.8,55.3,t)*(1-sstep(63.0,63.4,t));
   if(ga>0){

@@ -103,14 +103,14 @@ scene(0,3.72,(t)=>{
   const U=baseU(); const days=t*0.8;
   // sun collapse
   const c0=1.58;
-  let sr=1.2*(1+0.01*Math.sin(t*3)), si=1.25, scol=[1.0,.62,.28];
-  if(t>c0){const k=clamp((t-c0)/(T_COLL-c0)); sr=1.2*(1-Math.pow(k,2.2)); si=1.25+k*k*9; scol=[lerp(1,.9,k),lerp(.62,.85,k),lerp(.28,1.0,k)];}
+  let sr=1.2*(1+0.01*Math.sin(t*3)), si=1.0, scol=[1.0,.52,.2];
+  if(t>c0){const k=clamp((t-c0)/(T_COLL-c0)); sr=1.2*(1-Math.pow(k,2.2)); si=1.0+k*k*9; scol=[lerp(1,.9,k),lerp(.52,.85,k),lerp(.2,1.0,k)];}
   if(t>=T_COLL) si=0;
   U.uStar0=[0,0,0,Math.max(sr,0.001)]; U.uStar0Col=[...scol,si];
   U.uBHAlpha=sstep(T_COLL-0.06,T_COLL+0.12,t); U.uBH=[0,0,0,0.30];
   U.uLens=1.0+0.6*Math.exp(-Math.max(0,t-T_COLL)*3)*U.uBHAlpha;
-  const fl=t>=T_COLL-0.04?Math.exp(-(t-T_COLL+0.04)*9):0;
-  U.uFlash=fl*0.9; U.uFlashCol=[1,.92,.8];
+  const fl=t>=T_COLL-0.04?Math.exp(-(t-T_COLL+0.04)*14):0;
+  U.uFlash=fl*0.6; U.uFlashCol=[1,.92,.8];
   U.uFront=frontR(t); U.uFrontA=t>T_COLL?(0.5+1.5*Math.exp(-(t-T_COLL)*2.5)):0;
   const F=U.uFront;
   setPlanets(U,systemPlanets(days,i=>sstep(F-0.05,F+0.05,PLANETS[i].a),{city:1,spinT:t}));
@@ -181,8 +181,12 @@ scene(13.27,S3T1,(t)=>{
   const yaw=track(t,[[13.27,0.35],[16.4,0.6],[17.4,0.7],[19.1,1.25]]);
   const pitch=track(t,[[13.27,0.12],[16.4,0.05],[17.4,0.06],[19.1,0.28]]);
   const e=planetPos(EARTH,days);
-  const tgt=V.lerp([0,0,0],V.mul(e,0.5),sstep(17.7,19.1,t));
-  const cam=orbitCam(tgt,d,yaw,pitch,track(t,[[13.27,0.04],[16.4,-0.12],[17.4,0.1],[19.1,0]]),48);
+  const A=orbitCam([0,0,0],d,yaw,pitch,0,48);
+  const k=smoother(17.4,18.75,t);
+  const dir=V.norm(e), side=[-dir[2],0,dir[0]];
+  const posB=V.add(V.add(V.add(e,V.mul(dir,1.15)),V.mul(side,-0.15)),[0,0.32,0]);
+  const tgtB=V.add(V.lerp(e,[0,0,0],0.75),[0,-0.35,0]);
+  const cam=camBasis(V.lerp(A.pos,posB,k),V.lerp([0,0,0],tgtB,k),track(t,[[13.27,0.04],[16.4,-0.12],[17.4,0.1],[19.1,-0.03]]),48);
   return {U,cam,ov:{d,days}};
 },t=>((t>15.4&&t<16.5)||(t>17.4&&t<18.7))?4:1);
 
@@ -307,13 +311,13 @@ const S9T1=71.45;
 scene(S8T1,S9T1,(t)=>{
   const U=baseU(); const days=t*0.8;
   const u=(t-S8T1)/(S9T1-S8T1);
-  U.uStar0=[0,0,0,1.2]; U.uStar0Col=[1,.62,.28,1.25*sstep(63.4,63.75,t)];
+  U.uStar0=[0,0,0,1.2]; U.uStar0Col=[1,.52,.2,1.0*sstep(63.4,63.75,t)];
   const giant=sstep(68.5,69.6,t);
-  U.uStar1=[-7.5,2.2,-17,5.2]; U.uStar1Col=[.32,.52,1.0,giant>0.001?1.0*giant:0];
+  U.uStar1=[-7.5,2.2,-17,Math.max(0.01,5.2*eOut(giant))]; U.uStar1Col=[.4,.6,1.0,giant>0.001?1.5:0];
   setPlanets(U,systemPlanets(days,i=>1,{city:0,spinT:t}).slice(0,4));
   U.uAmb=[.05,.07,.12];
-  const fl=Math.exp(-Math.max(0,t-63.42)*3.5)*(t>63.4?1:0);
-  U.uFlash=fl*0.6; U.uFlashCol=[1,.85,.6];
+  const fl=Math.exp(-Math.max(0,t-63.42)*9)*(t>63.4?1:0);
+  U.uFlash=fl*0.22; U.uFlashCol=[1,.85,.6];
   const pos=track(t,[[63.4,[1.0,0.5,6.6]],[66.9,[1.6,0.7,7.6]],[68.4,[2.2,0.9,8.4]],[69.8,[4.2,1.6,13.0]],[71.45,[4.6,1.8,14.2]]]);
   const tg=track(t,[[63.4,[0,-0.25,0]],[66.9,[0,-0.1,0]],[68.4,[-0.5,0.2,-1]],[69.8,[-3.2,0.6,-6]],[71.45,[-3.4,0.7,-6.4]]]);
   const cam=camBasis(pos,tg,track(t,[[63.4,0.04],[68.4,-0.02],[71.45,0.05]]),46);
@@ -326,7 +330,7 @@ scene(S9T1,DUR+0.5,(t)=>{
   setPlanets(U,systemPlanets(days,null,{spinT:t,scale:1.3}));
   setOrbits(U,days,0.55,0.6);
   U.uAmb=[.09,.11,.2];
-  U.uFlash=Math.exp(-Math.max(0,t-71.47)*5)*0.25; U.uFlashCol=[.6,.7,1];
+  U.uFlash=0;
   const u=(t-S9T1)/(DUR-S9T1);
   const cam=orbitCam([0,-0.4,0],lerp(16,14.5,eOut(u)),lerp(2.4,2.75,u),lerp(0.62,0.7,u),0.03,46);
   return {U,cam,ov:{days}};
