@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>thumb</title>
+<style>
+@font-face{font-family:'Unbounded';src:url(fonts/unbounded-cyrillic.woff2) format('woff2');font-weight:200 900;unicode-range:U+0400-045F;}
+@font-face{font-family:'Unbounded';src:url(fonts/unbounded-latin.woff2) format('woff2');font-weight:200 900;unicode-range:U+0000-00FF,U+2000-206F,U+2190-2193;}
+@font-face{font-family:'Manrope';src:url(fonts/manrope-cyrillic.woff2) format('woff2');font-weight:200 800;unicode-range:U+0400-045F;}
+@font-face{font-family:'Manrope';src:url(fonts/manrope-latin.woff2) format('woff2');font-weight:200 800;unicode-range:U+0000-00FF,U+2000-206F;}
+body{margin:0;background:#000}</style></head><body>
+<canvas id="out" width="2160" height="2880" style="height:100vh"></canvas>
+<script src="js/glsl.js"></script><script src="js/engine.js"></script><script src="js/timeline.js"></script>
+<script>
+const W=2160,H=2880; const out=document.getElementById('out'); const ctx=out.getContext('2d');
+const P=new URLSearchParams(location.search);
+function state(mode){
+  const U=baseU();
+  const n=V.norm([0.35,1.0,0.28]); let gc=V.norm([-0.55,0.22,-0.8]); gc=V.norm(V.sub(gc,V.mul(n,V.dot(gc,n))));
+  const camPos=V.add(V.mul(gc,-7.4),[0,0.7,0]);
+  const cam=camBasis(camPos,[0,-0.55,0],0.0,46);
+  camU(U,cam); U.uTime=3.0; U.uSeed=1.7; U.uRes=[W,H];
+  const ep=V.add(V.add(V.add(cam.pos,V.mul(cam.F,4.3)),V.mul(cam.R,0.14)),V.mul(cam.U,-0.66));
+  const earth={pos:ep,r:0.30,type:2,lit:mode==='sun'?1:0,city:mode==='sun'?0:0.55,spin:2.1,tilt:0.35};
+  if(mode==='sun'){ U.uStar0=[0,0,0,1.15]; U.uStar0Col=[1,.46,.14,0.85]; U.uLightPos=V.add(V.add(cam.pos,V.mul(cam.R,-9.0)),V.mul(cam.U,2.5)); }
+  else { U.uBHAlpha=1; U.uBH=[0,0,0,0.82]; U.uLens=1.0; U.uAmb=[.10,.14,.26]; U.uFill=0.35; }
+  U._items=[earth]; U._kept=[earth]; U.uPlN=1; U.uEarthI=0; U.uSatI=-1;
+  U.uVig=0.6;
+  return {U,cam};
+}
+async function go(){
+  for(const f of ['900 100px Unbounded','800 100px Manrope']) await document.fonts.load(f,'ЧЁРНАЯ ДЫРА?');
+  const eng=new Engine(W,H,1); eng.buildSky(2048);
+  const A=document.createElement('canvas'); A.width=W; A.height=H; const B=document.createElement('canvas'); B.width=W; B.height=H;
+  const sA=state('sun'); eng.render([sA.U]); A.getContext('2d').drawImage(eng.canvas,0,0);
+  const sB=state('bh'); eng.render([sB.U]); B.getContext('2d').drawImage(eng.canvas,0,0);
+  // diagonal split through body center
+  const c=project(sA.cam,[0,0,0],W,H);
+  const ang=0.18; // tilt of seam
+  const seam=(y)=>c.x+(y-c.y)*Math.tan(ang);
+  ctx.drawImage(B,0,0);
+  ctx.save(); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(seam(0),0); ctx.lineTo(seam(H),H); ctx.lineTo(0,H); ctx.closePath(); ctx.clip(); ctx.drawImage(A,0,0); ctx.restore();
+  // seam glow
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(const [w,a] of [[40,0.08],[14,0.25],[4,0.9]]){ctx.strokeStyle=`rgba(255,235,200,${a})`;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(seam(0),0);ctx.lineTo(seam(H),H);ctx.stroke();}
+  ctx.restore();
+  // readability gradients top/bottom
+  let g=ctx.createLinearGradient(0,0,0,900); g.addColorStop(0,'rgba(0,0,0,0.75)'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,900);
+  g=ctx.createLinearGradient(0,H-1000,0,H); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.85)'); ctx.fillStyle=g; ctx.fillRect(0,H-1000,W,1000);
+  const txt=(s,x,y,size,fill,glow,weight=900,fam='Unbounded',track=0)=>{
+    ctx.save(); ctx.font=`${weight} ${size}px ${fam}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.letterSpacing=track+'px';
+    ctx.lineJoin='round'; ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=size*0.12; ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=size*0.25; ctx.strokeText(s,x,y);
+    ctx.shadowColor=glow; ctx.shadowBlur=size*0.35; ctx.fillStyle=fill; ctx.fillText(s,x,y); ctx.shadowBlur=0; ctx.fillText(s,x,y); ctx.restore(); };
+  const warm=(y0,y1)=>{const q=ctx.createLinearGradient(0,y0,0,y1); q.addColorStop(0,'#FFF1C9'); q.addColorStop(0.55,'#FFC15A'); q.addColorStop(1,'#FF8A2A'); return q;};
+  const cold=(y0,y1)=>{const q=ctx.createLinearGradient(0,y0,0,y1); q.addColorStop(0,'#FFFFFF'); q.addColorStop(1,'#9CC8FF'); return q;};
+  txt('ЧТО ЕСЛИ',W/2,250,120,'#FFE3B0','rgba(255,170,60,0.6)',800,'Manrope',40);
+  txt('СОЛНЦЕ',W/2,500,330,warm(350,650),'rgba(255,140,40,0.75)');
+  txt('ЧЁРНАЯ',W/2,H-560,300,cold(H-700,H-420),'rgba(110,170,255,0.75)');
+  txt('ДЫРА?',W/2,H-240,300,cold(H-380,H-100),'rgba(110,170,255,0.75)');
+  // arrow on seam
+  window.done=true;
+}
+go();
+</script></body></html>
