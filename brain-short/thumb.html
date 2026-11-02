@@ -1,0 +1,38 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>thumb</title>
+<style>
+@font-face{font-family:'Unbounded';src:url(fonts/unbounded-cyrillic.woff2) format('woff2');font-weight:200 900;unicode-range:U+0400-045F;}
+@font-face{font-family:'Unbounded';src:url(fonts/unbounded-latin.woff2) format('woff2');font-weight:200 900;unicode-range:U+0000-00FF,U+2000-206F;}
+@font-face{font-family:'Manrope';src:url(fonts/manrope-cyrillic.woff2) format('woff2');font-weight:200 800;unicode-range:U+0400-045F;}
+@font-face{font-family:'Manrope';src:url(fonts/manrope-latin.woff2) format('woff2');font-weight:200 800;unicode-range:U+0000-00FF,U+2000-206F;}
+body{margin:0;background:#000}</style></head><body>
+<canvas id="out" width="2160" height="3840" style="display:none"></canvas>
+<canvas id="th" width="2160" height="2880" style="height:100vh"></canvas>
+<script src="js/brain.js"></script>
+<script>
+track=function(){return [1.02,0,0.02,0];};          // fixed framing for both halves
+drawCaptions=function(){};
+function shot(t){ctx.setTransform(2,0,0,2,0,0); frame(t); ctx.setTransform(1,0,0,1,0,0);
+  const c=document.createElement('canvas'); c.width=2160; c.height=2880; c.getContext('2d').drawImage(cv,0,1800-1440+40,2160,2880,0,0,2160,2880); return c;}
+(async()=>{
+  while(!window.ready) await new Promise(r=>setTimeout(r,50));
+  await document.fonts.load('900 100px Unbounded','МОЗГ НА 100%');
+  const A=shot(26.25), B=shot(33.38);
+  const th=document.getElementById('th'), g=th.getContext('2d'), TW=2160, TH=2880;
+  const cx=TW/2, cy=1480, ang=0.18, seam=y=>cx+(y-cy)*Math.tan(ang);
+  g.drawImage(B,0,0);
+  g.save(); g.beginPath(); g.moveTo(0,0); g.lineTo(seam(0),0); g.lineTo(seam(TH),TH); g.lineTo(0,TH); g.closePath(); g.clip(); g.drawImage(A,0,0); g.restore();
+  g.save(); g.globalCompositeOperation='lighter';
+  for(const [w,a] of [[40,0.08],[14,0.25],[4,0.9]]){g.strokeStyle=`rgba(255,240,230,${a})`;g.lineWidth=w;g.beginPath();g.moveTo(seam(0),0);g.lineTo(seam(TH),TH);g.stroke();}
+  g.restore();
+  let q=g.createLinearGradient(0,0,0,850); q.addColorStop(0,'rgba(0,0,0,0.8)'); q.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=q; g.fillRect(0,0,TW,850);
+  q=g.createLinearGradient(0,TH-900,0,TH); q.addColorStop(0,'rgba(0,0,0,0)'); q.addColorStop(1,'rgba(0,0,0,0.85)'); g.fillStyle=q; g.fillRect(0,TH-900,TW,900);
+  const T=(s,x,y,size,fill,glow,w=900,f='Unbounded',tr=0)=>{g.save();g.font=`${w} ${size}px ${f}`;g.textAlign='center';g.textBaseline='middle';g.letterSpacing=tr+'px';
+    g.lineJoin='round';g.strokeStyle='rgba(0,0,0,0.85)';g.lineWidth=size*0.12;g.shadowColor='rgba(0,0,0,0.9)';g.shadowBlur=size*0.25;g.strokeText(s,x,y);
+    g.shadowColor=glow;g.shadowBlur=size*0.35;g.fillStyle=fill;g.fillText(s,x,y);g.shadowBlur=0;g.fillText(s,x,y);g.restore();};
+  const hot=(y0,y1)=>{const r=g.createLinearGradient(0,y0,0,y1);r.addColorStop(0,'#FFFFFF');r.addColorStop(0.5,'#FFB0A0');r.addColorStop(1,'#FF4A3A');return r;};
+  T('ЧТО, ЕСЛИ ТВОЙ',TW/2,240,110,'#BFE6FF','rgba(90,200,255,0.6)',800,'Manrope',30);
+  T('МОЗГ',TW/2,480,300,'#E8F7FF','rgba(90,200,255,0.8)');
+  T('НА 100%?',TW/2,TH-330,270,hot(TH-500,TH-160),'rgba(255,60,50,0.85)');
+  window.done=true;
+})();
+</script></body></html>
