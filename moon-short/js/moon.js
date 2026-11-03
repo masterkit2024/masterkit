@@ -301,6 +301,12 @@ function sceneEnd(t){ // 45.6–54
   pop(t,49.6,0,62,'МИР НАМНОГО',TY-60,{c:'#FFFFFF',glow:'rgba(110,180,255,0.6)'});
   pop(t,50.0,0,74,'УДИВИТЕЛЬНЕЕ,',TY+40,{c:'#8FD3FF',glow:'rgba(110,180,255,0.8)'});
   pop(t,50.9,0,48,'ЧЕМ КАЖЕТСЯ',TY+130,{w:800,f:'Manrope',tr:10,c:'#E6EEF8'});
+  // part 3 teaser badge
+  const ka=clamp((t-51.6)/0.45); if(ka>0){const s=eBack(ka), pul=1+0.03*Math.sin((t-51.6)*5);
+    ctx.save(); ctx.globalAlpha=clamp(ka*2); ctx.translate(W/2,1075); ctx.scale(s*pul,s*pul);
+    ctx.shadowColor='rgba(255,200,110,0.7)'; ctx.shadowBlur=40; ctx.fillStyle='rgba(20,14,6,0.82)'; pill(-330,-70,660,140,70); ctx.fill(); ctx.shadowBlur=0;
+    const g=ctx.createLinearGradient(-330,0,330,0); g.addColorStop(0,'#FFD27A'); g.addColorStop(1,'#FFB27A'); ctx.strokeStyle=g; ctx.lineWidth=4; pill(-330,-70,660,140,70); ctx.stroke(); ctx.restore();
+    txt('3 ЧАСТЬ СКОРО',W/2,1077,{size:62,c:'#FFE6A8',glow:'rgba(255,190,90,0.8)',gr:24,a:clamp(ka*2),s:s*pul});}
 }
 const SC=[[0,6.2,sceneOrbit],[6.2,13.5,sceneNight],[13.5,15.5,sceneBegin],[15.5,25.6,sceneTide],[25.6,27.8,sceneMore],[27.8,37.0,sceneAxis],[37.0,45.6,sceneHumans],[45.6,DUR+1,sceneEnd]];
 function frame(t){
