@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Mono1;src:url(fonts/RubikMonoOne-Regular.ttf)}
+@font-face{font-family:Pango;src:url(fonts/Pangolin-Regular.ttf)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head><body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// ===== Deterministic hand-drawn cel renderer: every frame = pure function of frame index =====
+const W=1920,H=1080,FPS=24,VW=1080,VH=1920,VS=1.2,SCX=915,SCY=513;
+const C={paper:'#F3E5C8',floor:'#E7D2AC',ink:'#1D1814',red:'#E2472D',yel:'#F6BF2F',gi:'#FFF9EC',skin:'#F2A983',sun:'#F8D673'};
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let BI=0, MODE='film';
+const hash=n=>{n=Math.sin(n*12.9898+78.233)*43758.5453;return n-Math.floor(n)};
+const nz=(s,i,k)=>hash(BI*977+s*131+i*17.3+k*3.7)*2-1;
+const cl=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const seg=(t,a,b)=>cl((t-a)/(b-a));
+const eo=x=>1-Math.pow(1-x,3), ei=x=>x*x*x, eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const back=x=>{const c=1.9;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+const lerp=(a,b,u)=>a+(b-a)*u, L2=(p,q,u)=>[lerp(p[0],q[0],u),lerp(p[1],q[1],u)];
+let AMP=1.7; // boil amplitude px
+
+// ---------- brush: centreline + pressure -> outline polygon ----------
+function spline(P,closed,sub){const o=[],n=P.length;const g=i=>closed?P[(i+n)%n]:P[cl(i,0,n-1)];
+  const m=closed?n:n-1;for(let i=0;i<m;i++){const p0=g(i-1),p1=g(i),p2=g(i+1),p3=g(i+2);
+  for(let s=0;s<sub;s++){const t=s/sub,t2=t*t,t3=t2*t;o.push([0,1].map(k=>.5*(2*p1[k]+(-p0[k]+p2[k])*t+(2*p0[k]-5*p1[k]+4*p2[k]-p3[k])*t2+(-p0[k]+3*p1[k]-3*p2[k]+p3[k])*t3)))}}
+  if(!closed)o.push(P[n-1]);return o}
+function jit(P,sd,amp=AMP){return P.map((p,i)=>[p[0]+nz(sd,i,1)*amp,p[1]+nz(sd,i,2)*amp])}
+function brush(pts,w,o={}){const closed=!!o.closed,sd=o.seed||0;
+  const P=spline(jit(pts,sd,o.amp??AMP),closed,o.sub||6),n=P.length,Lf=[],Rt=[];
+  const ph=hash(sd*7+BI);
+  for(let i=0;i<n;i++){const a=P[closed?(i-1+n)%n:Math.max(i-1,0)],b=P[closed?(i+1)%n:Math.min(i+1,n-1)];
+    let dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy)||1;dx/=d;dy/=d;const u=i/(n-1);
+    let pr=closed?.78+.22*Math.sin(u*Math.PI*4+ph*6):Math.pow(cl(Math.min(u/.18,(1-u)/.25)),.6)*(.82+.18*Math.sin(u*9+ph*6));
+    if(o.flat)pr=Math.max(pr,.65);const hw=w*.5*Math.max(.14,pr);
+    Lf.push([P[i][0]-dy*hw,P[i][1]+dx*hw]);Rt.push([P[i][0]+dy*hw,P[i][1]-dx*hw])}
+  ctx.fillStyle=o.col||C.ink;ctx.beginPath();
+  if(closed){poly(Lf);poly(Rt.reverse());ctx.fill('evenodd')}else{poly(Lf.concat(Rt.reverse()));ctx.fill()}}
+function poly(P){ctx.moveTo(P[0][0],P[0][1]);for(let i=1;i<P.length;i++)ctx.lineTo(P[i][0],P[i][1]);ctx.closePath()}
+// fill slightly off-register (hand colouring)
+const REG=[[4,-3],[-3,3],[3,4],[-4,-2]];
+function fillShape(P,col,sd){const r=REG[(BI+sd)%4];ctx.fillStyle=col;ctx.beginPath();
+  poly(spline(jit(P.map(p=>[p[0]+r[0],p[1]+r[1]]),sd+50,AMP*1.3),true,6));ctx.fill()}
+function ring(cx,cy,rx,ry,n=10,rot=0){const P=[];for(let i=0;i<n;i++){const a=i/n*Math.PI*2+rot;P.push([cx+Math.cos(a)*rx,cy+Math.sin(a)*ry])}return P}
+function blob(cx,cy,rx,ry,col,lw=6,sd=0,rot=0){const P=ring(cx,cy,rx,ry,12,rot);if(col)fillShape(P,col,sd);brush(P,lw,{closed:true,seed:sd})}
+// tube limb: off-register fill stroke + ink outline polygon
+function tube(pts,w,col,lw=6,sd=0){const S=spline(jit(pts,sd),false,6),n=S.length;const r=REG[(BI+sd)%4];
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap=ctx.lineJoin='round';ctx.beginPath();
+  S.forEach((p,i)=>i?ctx.lineTo(p[0]+r[0],p[1]+r[1]):ctx.moveTo(p[0]+r[0],p[1]+r[1]));ctx.stroke();ctx.restore();
+  const Lf=[],Rt=[];for(let i=0;i<n;i++){const a=S[Math.max(i-1,0)],b=S[Math.min(i+1,n-1)];let dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy)||1;dx/=d;dy/=d;
+    Lf.push([S[i][0]-dy*w/2,S[i][1]+dx*w/2]);Rt.push([S[i][0]+dy*w/2,S[i][1]-dx*w/2])}
+  const cap=(c,a0,k)=>{const o=[];for(let j=1;j<k;j++){const a=a0+j/k*Math.PI;o.push([c[0]+Math.cos(a)*w/2,c[1]+Math.sin(a)*w/2])}return o};
+  const e=S[n-1],e2=S[n-2],s=S[0],s2=S[1];const te=Math.atan2(e[1]-e2[1],e[0]-e2[0]),ts=Math.atan2(s2[1]-s[1],s2[0]-s[0]);
+  const out=Lf.concat(cap(e,te-Math.PI/2,5).reverse(),Rt.reverse(),cap(s,ts+Math.PI/2,5).reverse());
+  if(lw>0)brush(out,lw,{closed:true,seed:sd+3,amp:.5,sub:2})}
+
+// ---------- hand lettering (boiled via slice wobble + transform jitter) ----------
+const tc=document.createElement('canvas');tc.width=1400;tc.height=520;const tx=tc.getContext('2d');
+function letter(str,x,y,size,o={}){const font=(o.font||'Mono1'),rot=(o.rot||0)+nz(9,str.length,1)*.012,sc=o.sc??1;
+  tx.clearRect(0,0,tc.width,tc.height);tx.save();tx.translate(700,260);tx.font=`${size}px ${font}`;tx.textAlign='center';tx.textBaseline='middle';
+  tx.lineJoin='round';const sh=size*.06;
+  tx.fillStyle=C.ink;tx.fillText(str,sh,sh);            // ink drop
+  const r=REG[BI%4];tx.fillStyle=o.col||C.red;tx.fillText(str,r[0]*.7,r[1]*.7);
+  tx.strokeStyle=C.ink;tx.lineWidth=o.lw||size*.045;tx.strokeText(str,0,0);
+  if(o.hi){tx.globalCompositeOperation='source-atop';tx.fillStyle=o.hi;tx.fillRect(-700,-260,1400,size*-.12);}
+  tx.restore();
+  ctx.save();ctx.translate(x+nz(4,1,1)*1.5,y+nz(4,1,2)*1.5);ctx.rotate(rot);ctx.scale(sc*(o.sx||1),sc*(o.sy||1));
+  const ph=BI*1.7;for(let yy=0;yy<520;yy+=6){const dx=Math.sin(yy*.045+ph)*1.6;ctx.drawImage(tc,0,yy,1400,6,-700+dx,yy-260,1400,6)}
+  ctx.restore()}
+
+// ---------- paper ----------
+const paper=document.createElement('canvas');paper.width=VW+40;paper.height=VH+40;
+(function(){const p=paper.getContext('2d'),id=p.createImageData(VW+40,VH+40),d=id.data;let s=1;
+  const rnd=()=>{s=(s*16807)%2147483647;return s/2147483647};
+  for(let i=0;i<d.length;i+=4){const v=255-rnd()*34;d[i]=v;d[i+1]=v*.985;d[i+2]=v*.95;d[i+3]=255}p.putImageData(id,0,0);
+  p.globalAlpha=.06;p.strokeStyle='#7a6448';for(let k=0;k<900;k++){p.lineWidth=.6+rnd();p.beginPath();const x=rnd()*(VW+40),y=rnd()*(VH+40),a=rnd()*6.3,l=6+rnd()*30;p.moveTo(x,y);p.quadraticCurveTo(x+Math.cos(a)*l*.5+rnd()*6,y+Math.sin(a)*l*.5,x+Math.cos(a)*l,y+Math.sin(a)*l);p.stroke()}
+  const g=p.createRadialGradient(VW/2+20,VH/2+20,VH*.3,VW/2+20,VH/2+20,VH*.75);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(90,50,20,.55)');p.globalAlpha=1;p.fillStyle=g;p.fillRect(0,0,VW+40,VH+40)})();
+
