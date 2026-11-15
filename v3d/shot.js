@@ -1,0 +1,3 @@
+const {chromium}=require('playwright');(async()=>{const [,,page,out,w,h]=process.argv;const b=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--allow-file-access-from-files']});const p=await b.newPage({viewport:{width:+w,height:+h}});
+p.on('console',m=>console.log(m.text()));p.on('pageerror',e=>console.log('ERR',e.message));await p.goto('file://'+__dirname+'/'+page);await p.waitForFunction('window.ready',{timeout:20000});
+const d=await p.evaluate(()=>document.querySelector('canvas').toDataURL('image/jpeg',.9));require('fs').writeFileSync(out,Buffer.from(d.split(',')[1],'base64'));await b.close()})();

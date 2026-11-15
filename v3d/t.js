@@ -1,0 +1,3 @@
+const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--allow-file-access-from-files']});const p=await b.newPage({viewport:{width:1080,height:1920}});
+p.on('console',m=>console.log(m.text()));await p.goto('file://'+__dirname+'/t.html');await p.waitForFunction('window.ready');
+console.log(await p.evaluate('go()'));let t=Date.now();for(let i=0;i<5;i++)await p.evaluate(()=>{go();return document.querySelector('canvas').toDataURL('image/jpeg',.92).length});console.log('ms/frame',(Date.now()-t)/5);await b.close()})();
