@@ -385,7 +385,7 @@ window.render = function (f) {
   let sx = 0, sy = 0; for (const ti of IMP) { const d = t - ti; if (d >= 0 && d < .35) { const q = (.35 - d) / .35; sx += nz(f, 1) * .06 * q; sy += nz(f, 2) * .05 * q; } }
   const hand = .012, kk = cm.k ?? 1.75; const dv = kk > 1.6 ? .38 : 0; cm.p[1] -= dv; cm.l[1] -= dv; const pp = cm.p.map((v, i) => cm.l[i] + (v - cm.l[i]) * kk); pp[1] = Math.max(pp[1], .22); cam.position.set(pp[0] + Math.sin(t * 1.3) * hand + sx, pp[1] + Math.sin(t * 1.7) * hand + sy, pp[2]); cam.fov = cm.f; cam.updateProjectionMatrix(); cam.lookAt(cm.l[0] + sx * .5, cm.l[1] + sy * .5, cm.l[2]);
   drawFX(t); R.render(S, cam);
-  ox.clearRect(0, 0, W, H); ox.drawImage(glc, 0, 0); vignette(); drawLabels(t); drawCaps(t);
+  ox.clearRect(0, 0, W, H); ox.drawImage(glc, 0, 0); vignette(); if (!window.NOCAP) { drawLabels(t); drawCaps(t); }
   const cutFlash = CUTS.some(c => t >= c && t < c + 1 / FPS) && t > .1; if (cutFlash) { ox.fillStyle = 'rgba(255,255,255,.12)'; ox.fillRect(0, 0, W, H); }
   return out.toDataURL('image/jpeg', .95);
 };
