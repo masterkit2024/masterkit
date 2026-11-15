@@ -124,5 +124,16 @@ export function walkP(ph, base = P.stand, amp = 1) {
   o.lHip = [-.5 * s * amp, 0, .04]; o.rHip = [.5 * s * amp, 0, -.04];
   o.lKnee = [(.15 + .55 * Math.max(0, Math.sin(ph - 1.2))) * amp]; o.rKnee = [(.15 + .55 * Math.max(0, Math.sin(ph + Math.PI - 1.2))) * amp];
   if (base === P.stand) { o.lSh = [.45 * s * amp, 0, .1]; o.rSh = [-.45 * s * amp, 0, -.1]; o.lEl = [-.3]; o.rEl = [-.3]; }
-  o.hy = -Math.abs(Math.cos(ph)) * .03 * amp; o.spine = [.05]; return o;
+  o.hy = -Math.abs(Math.cos(ph)) * .03 * amp; o.spine = [.05]; o.walk = ph; o.walkStand = base === P.stand; return o;
+}
+
+// seated "butt-scoot" guard: upper body from the pose, legs always seated
+export function seatify(p) {
+  const o = {}; ['spine', 'neck', 'lSh', 'lEl', 'rSh', 'rEl'].forEach(k => { if (p[k]) o[k] = p[k]; });
+  const walking = p.walk !== undefined, s = walking ? Math.sin(p.walk) : 0;
+  const rest = !o.lSh || (Math.abs(o.lSh[0]) < .35 && Math.abs((o.rSh || [0])[0]) < .35 && Math.abs(o.lSh[2] || 0) < .3);
+  if ((walking && p.walkStand) || (!walking && rest)) { o.lSh = [.65 + .25 * s, 0, .45]; o.lEl = [-.12]; o.rSh = [-.75 - .35 * s, 0, -.3]; o.rEl = [-.65]; }
+  const sp = o.spine ? o.spine[0] : .15; o.spine = [cl(sp, -.3, .9) * .5 + .12 + (walking ? .07 * s : 0), o.spine ? o.spine[1] || 0 : 0, o.spine ? o.spine[2] || 0 : 0];
+  o.lHip = [-1.9 + .32 * s, 0, .22]; o.rHip = [-1.9 - .32 * s, 0, -.22]; o.lKnee = [1.15 + .45 * Math.max(0, -s)]; o.rKnee = [1.15 + .45 * Math.max(0, s)];
+  o.hy = -.77 + (walking ? Math.abs(s) * .035 : 0); o.tw = p.tw; return o;
 }

@@ -1,6 +1,6 @@
 // 3D low-poly film · 1080x1920 · every frame = f(t)
 import * as THREE from 'three';
-import { M, bx, grp, hash, cl, seg, eo, ei, eio, back, lerp, V, makeChar, setPose, mixP, P, walkP } from './rig.js';
+import { M, bx, grp, hash, cl, seg, eo, ei, eio, back, lerp, V, makeChar, setPose, mixP, P, walkP, seatify } from './rig.js';
 const W = 1080, H = 1920, FPS = 24, PI = Math.PI;
 const glc = document.getElementById('g'), out = document.getElementById('o'), ox = out.getContext('2d');
 const R = new THREE.WebGLRenderer({ canvas: glc, antialias: true, preserveDrawingBuffer: true });
@@ -39,7 +39,7 @@ const WAITER = makeChar({ shirt: '#f4f1ea', sleeve: 'long', pants: '#16171a', le
 const QS = [makeChar({ shirt: '#3a7bd5', sleeve: 'long', pants: '#2c2f36', legs: 'pants', shoes: '#222', hair: 'slick', beard: 1 }), makeChar({ shirt: '#e3b23c', legs: 'skirt', shoes: '#333', hair: 'bun', hairC: '#3b2a20' }), makeChar({ shirt: '#8bbf6a', sleeve: 'long', pants: '#45403a', legs: 'pants', shoes: '#222', hair: 'bald', stache: 1 })];
 const CW = [makeChar({ shirt: '#9bb7d6', sleeve: 'long', pants: '#333', legs: 'pants', shoes: '#222', hair: 'slick' }), makeChar({ shirt: '#d98a6a', legs: 'skirt', shoes: '#222', hair: 'long', hairC: '#5a3a26' }), makeChar({ shirt: '#f4f1ea', sleeve: 'long', pants: '#2c2f36', legs: 'pants', shoes: '#222', hair: 'crop', beard: 1 })];
 const ALL = [HERO, BOSS, GUARD, COP, MOM, GIRL, WAITER, ...QS, ...CW]; ALL.forEach(c => S.add(c.root));
-function place(C, x, z, head, pose, face, y = 0, pitch = 0) { C.root.visible = true; C.root.position.set(x, y, z); C.root.rotation.set(pitch, head, 0); setPose(C, pose); if (face) C.setFace(face); }
+function place(C, x, z, head, pose, face, y = 0, pitch = 0) { C.root.visible = true; C.root.position.set(x, y, z); C.root.rotation.set(pitch, head, 0); if (C === HERO && !pitch && !pose.noSit) pose = seatify(pose); setPose(C, pose); if (face) C.setFace(face); }
 
 // ---------- props ----------
 function mkClock() { const g = grp(null); const b = cyl(.17, .17, .12, 12, '#f2c230', g, 0, 0, 0); b.rotation.x = PI / 2; const f = cyl(.14, .14, .125, 12, '#f8f4ea', g, 0, 0, .002); f.rotation.x = PI / 2;
@@ -86,7 +86,7 @@ function choke(t, c) {
   else { const u = back(seg(t, c.win, c.win + .45)); x = c.to[0] - f[0] * .35 * u; z = c.to[1] - f[1] * .35 * u; pose = mixP(c.chokeP || P.choke, P.win, u); face = u > .5 ? 'happy' : 'grit'; st = 4; }
   place(H_, x, z, c.head, Object.assign({ tw: st === 2 ? 1 : Math.sin(t * 7) * .2 }, pose), face, y);
   const T = c.tgt; if (!T) return st; T.visible = true;
-  const hold = () => { const hx = c.to[0] + f[0] * c.hold[0], hz = c.to[1] + f[1] * c.hold[0]; return [hx, c.hold[1], hz]; };
+  const hold = () => { const hx = c.to[0] + f[0] * c.hold[0], hz = c.to[1] + f[1] * c.hold[0]; return [hx, Math.max(.05, c.hold[1] - .55), hz]; };
   if (st <= 2) { T.position.set(...c.rest.p); T.rotation.set(...c.rest.r); T.scale.set(1, 1, 1); if (c.idle) c.idle(t, T); }
   else if (st === 3 && !c.big) { const [hx, hy, hz] = hold(); const tap = (c.taps || []).some(a => t > a - .1 && t < a + .08); const j = tap ? .12 : .03;
     T.position.set(hx + Math.sin(t * 41) * j * .3, hy + Math.sin(t * 37) * j * .3, hz); T.rotation.set(c.holdR[0] + Math.sin(t * 29) * j, c.holdR[1] + c.head, c.holdR[2] + Math.sin(t * 23) * j); const s = t < hit + .2 ? .85 : .95; T.scale.set(1 / s * .98, s, 1 / s * .98); }
@@ -111,7 +111,7 @@ const st0 = set(); road(st0); fence(st0, -14, 14, -6.4); [[-10, -11, 4, 4, 3, '#
 [[-7, -8], [1, -8.5], [8, -8], [-13, -8.4], [14, -9]].forEach(([x, z], i) => tree(st0, x, z, 1.2 + hash(i) * .5)); for (let x = -12; x <= 12; x += 8) lamp(st0, x, -3.8);
 scene(0, { set: st0, L: { sky: '#c9d3de', focus: [0, 0, 0] }, run(t) {
   const walking = t < 3.0, z = walking ? lerp(-1.5, 1.2, t / 3.0) : 1.2;
-  let pose = walking ? walkP(t * 8) : P.stand, face = 'calm';
+  let pose = walking ? walkP(t * 11) : P.stand, face = 'calm';
   if (t >= 3.6 && t < 5.4) pose = mixP(P.stand, { lSh: [-2.6, 0, .6], rSh: [-2.6, 0, -.6], lEl: [-1.9], rEl: [-1.9], neck: [.1] }, eo(seg(t, 3.6, 4.0)));
   if (t >= 5.4) { const u = eo(seg(t, 5.4, 5.8)); pose = mixP(P.stand, P.guard, u); face = 'angry'; }
   if (t >= 7.6) { pose = mixP(P.guard, P.win, back(seg(t, 7.6, 8.0))); face = 'happy'; }
@@ -169,8 +169,8 @@ scene(42.45, { set: st4, L: { sky: '#dfe3e7', hs: '#f4f8ff', hg: '#7a7f88', si: 
   const L = 44.6, tapT = [46.3, 46.7, 47.1];
   if (t < L - .45) { place(BOSS, 1.1, -.4, -PI / 2, mixP(P.stand, P.reach, eo(seg(t, 42.6, 43.3))), 'calm'); place(HERO, -1.0, -.4, PI / 2, P.stand, t > 43.7 ? 'angry' : 'calm'); }
   else if (t < L + .25) { place(BOSS, 1.1, -.4, -PI / 2, P.reach, 'shock'); const u = seg(t, L - .45, L + .25); place(HERO, lerp(-1.0, 1.75, eio(seg(u, .5, 1))), -.4, lerp(PI / 2, -PI / 2, seg(u, .6, 1)), u < .5 ? mixP(P.stand, P.crouch, eo(u * 2)) : P.leap, 'grit', Math.sin(seg(u, .5, 1) * PI) * .8); }
-  else { const tap = tapT.some(a => t > a - .12 && t < a + .06); const bp = Object.assign({}, P.bent, { rSh: [tap ? -.15 : -.7, 0, -.1], hy: -.05 }); place(BOSS, 1.1, -.4, -PI / 2, bp, t > 48 ? 'shock' : 'x');
-    place(HERO, 1.75, -.4, -PI / 2, Object.assign({}, P.hold, { lSh: [-2.0, 0, .2], lEl: [-.5], rSh: [-1.6, 0, -.1], rEl: [-.6], spine: [.15] }), t > 47.8 ? 'smug' : 'grit'); }
+  else { const tap = tapT.some(a => t > a - .12 && t < a + .06); const bp = Object.assign({}, P.bent, { rSh: [tap ? -.15 : -.7, 0, -.1], lSh: [.35, 0, .25], lEl: [-.2], hy: -.05 }); place(BOSS, 1.1, -.4, -PI / 2, bp, t > 48 ? 'shock' : 'x');
+    place(HERO, 1.85, -.4, -PI / 2, Object.assign({}, P.hold, { lSh: [-1.9, 0, .2], lEl: [-.4], rSh: [-1.7, 0, -.1], rEl: [-.5], spine: [.15] }), t > 47.8 ? 'smug' : 'grit'); }
   return shots(t, [[42.45, [0, 1.3, 3.4], [0, 1.3, -.4], [0, 1.3, 3.0], [0, 1.3, -.4], 34], [44.5, [-2.2, .9, 2.6], [1.1, 1.0, -.4], [-1.8, .8, 2.3], [1.1, .9, -.4], 34], [46.1, [.3, .45, 1.2], [.6, .3, -.4], [.4, .45, 1.1], [.6, .3, -.4], 34, 34, 1.4],
     [48.03, [3.4, 1.6, 2.6], [1.3, 1.1, -.4], [3.0, 1.5, 2.3], [1.3, 1.1, -.4], 34]]); } });
 IMP.push(44.85); fx(44.85, 1.1, .9, -.4, 7, .8);
@@ -185,7 +185,7 @@ scene(51.01, { set: st5, L: { sky: '#dfe3e7', hs: '#f4f8ff', hg: '#7a7f88', si: 
   if (t < L - .5) { place(HERO, -.2, .4, PI / 2.5, P.stand, t > 52.2 ? 'angry' : 'calm'); st = 0; }
   else if (t < L - .1) { place(HERO, -.2, .4, PI / 2.5, mixP(P.stand, P.crouch, eo(seg(t, L - .5, L - .15))), 'grit'); }
   else if (t < L + .25) { const u = seg(t, L - .1, L + .25); place(HERO, lerp(-.2, .9, u), lerp(.4, -1.0, u), PI / 2.5, P.leap, 'grit', Math.sin(u * PI) * .7); }
-  else if (t < win) { place(HERO, .55, -1.05, PI / 2, { hy: -.75, spine: [-.2], lHip: [-1.7, 0, .35], rHip: [-1.7, 0, -.35], lKnee: [1.2], rKnee: [1.2], lSh: [-1.3, 0, .3], rSh: [-1.3, 0, -.3], lEl: [-.6], rEl: [-.6] }, 'grit'); }
+  else if (t < win) { place(HERO, .55, -1.05, PI / 2, { noSit: 1, hy: -.75, spine: [-.2], lHip: [-1.7, 0, .35], rHip: [-1.7, 0, -.35], lKnee: [1.2], rKnee: [1.2], lSh: [-1.3, 0, .3], rSh: [-1.3, 0, -.3], lEl: [-.6], rEl: [-.6] }, 'grit'); }
   else place(HERO, .3, -.6, PI / 4, mixP({ hy: -.6 }, P.win, back(seg(t, win, win + .45))), 'happy');
   const shake = t < L + .25 ? Math.sin(t * 50) * .03 : t < win ? Math.sin(t * 40) * .05 : 0;
   PRN.position.set(1.6 + shake, .6 + (t >= L + .25 && t < win ? .0 : 0), -1.6); PRN.rotation.set(0, -.3, shake * 2);
@@ -203,13 +203,12 @@ const TRAY = grp(st6); bx(.45, .03, .32, '#f2c230', TRAY, 0, 0, 0); cyl(.08, .07
 scene(62.0, { set: st6, L: { sky: '#e5ddcf', hs: '#fff6e6', hg: '#80766a', si: 2.2, sd: [3, 8, 6], focus: [0, 0, -1] }, run(t) {
   QS.forEach((c, i) => place(c, -2.2 + i * .9, -1.5, -PI / 2, Object.assign({}, P.stand, { hy: Math.sin(t * 2 + i) * .005, neck: t > 67.2 ? [.5, 0, 0] : [0, 0, 0] }), t > 67.2 ? 'shock' : 'calm'));
   let x = 1.4, z = -1.5, pose = P.stand, face = 'calm', pitch = 0, y = 0, head = -PI / 2; TRAY.visible = false;
-  if (t >= 63.85 && t < 64.6) { const u = eo(seg(t, 63.85, 64.4)); pitch = PI / 2 * u; y = .14 * u; pose = mixP(P.stand, P.crawl, u); face = 'grit'; }
-  else if (t >= 64.6 && t < 67.0) { const n = 7, k = seg(t, 64.6, 67.0) * n, i = Math.floor(k), f = k - i; pitch = PI / 2; y = .14 + Math.sin(f * PI) * .03; x = lerp(1.4, -3.3, (i + eo(f)) / n); z = -1.5 + Math.sin(k * PI) * .06;
-    pose = mixP(P.crawl, { lSh: [-2.3, 0, .3], rSh: [-2.9, 0, -.3], lHip: [.1, 0, .3], rHip: [-.6, 0, -.4], lKnee: [.6], rKnee: [1.4] }, i % 2 ? eo(f) : 1 - eo(f)); face = 'grit'; }
-  else if (t >= 67.0) { const u = eo(seg(t, 67.0, 67.45)); x = -3.3; pitch = PI / 2 * (1 - u); y = .14 * (1 - u); head = lerp(-PI / 2, 0, seg(t, 67.5, 67.9)); pose = t > 70.31 ? P.shrug : mixP(P.crawl, P.hold, u); face = t > 70.31 ? 'calm' : 'happy';
-    if (t > 67.6 && t < 70.31) { TRAY.visible = true; TRAY.position.set(-3.3, 1.12, -1.5 + .45); } }
+  if (t >= 63.85 && t < 64.6) { face = 'grit'; pose = P.guard; z = lerp(-1.5, -.8, eo(seg(t, 63.85, 64.5))); }
+  else if (t >= 64.6 && t < 67.0) { const u = seg(t, 64.6, 67.0); x = lerp(1.4, -3.3, eio(u)); z = -.8; pose = walkP(t * 13); face = 'grit'; }
+  else if (t >= 67.0) { const u = eo(seg(t, 67.0, 67.5)); x = -3.3; z = lerp(-.8, -1.4, u); head = lerp(-PI / 2, 0, seg(t, 67.4, 67.9)); pose = t > 70.31 ? P.shrug : P.hold; face = t > 70.31 ? 'calm' : 'happy';
+    if (t > 67.6 && t < 70.31) { TRAY.visible = true; TRAY.position.set(-3.3, .62, -1.4 + .42); } }
   place(HERO, x, z, head, pose, face, y, pitch);
-  return shots(t, [[62.0, [3.2, 1.6, 2.4], [-.8, 1.1, -1.6], [2.8, 1.5, 2.2], [-.8, 1.1, -1.6], 38], [64.5, [.3, .3, .4], [-1.0, .3, -1.5], [-2.5, .3, .4], [-3.2, .3, -1.5], 36], [67.21, [-1.0, 1.5, 1.6], [-2.0, 1.4, -1.5], [-1.2, 1.4, 1.4], [-2.3, 1.3, -1.5], 34],
+  return shots(t, [[62.0, [3.2, 1.6, 2.4], [-.8, 1.1, -1.6], [2.8, 1.5, 2.2], [-.8, 1.1, -1.6], 38], [64.5, [.6, .9, 2.2], [-.4, .7, -1.2], [-2.0, .9, 2.2], [-2.8, .7, -1.2], 38], [67.21, [-1.0, 1.5, 1.6], [-2.0, 1.4, -1.5], [-1.2, 1.4, 1.4], [-2.3, 1.3, -1.5], 34],
     [70.31, [-2.5, 1.3, 1.4], [-3.3, 1.4, -1.5], [-2.7, 1.3, 1.2], [-3.3, 1.45, -1.5], 30]]); } });
 
 // S7 elevator
@@ -219,16 +218,16 @@ const ELL = new THREE.PointLight('#fff1cc', 0, 6, 1.5); ELL.position.set(0, 2, -
 scene(71.66, { set: st7, L: { sky: '#d5d9dc', hs: '#f4f8ff', hg: '#6f747a', hi: 1.0, si: 1.6, sd: [2, 8, 6], focus: [0, 0, -1] }, run(t) {
   const g = .7 * eio(seg(t, 74.9, 76.3)), jit = t > 74.9 && t < 76.3 ? Math.sin(t * 60) * .01 : t < 73.3 ? Math.sin(t * 45) * .008 : 0; DL.position.x = -.39 - g + jit; DR.position.x = .39 + g - jit; ELL.intensity = g * 6;
   INDL.material = M(t > 76.43 ? '#3aff6a' : '#ff3a2a', { emissive: t > 76.43 ? '#2aff5a' : '#ff2a1a', emissiveIntensity: t > 76.43 || Math.sin(t * 8) > 0 ? 1.6 : .1 });
-  const L = 73.75; let x = -1.6, z = -.6, pose = P.stand, face = 'angry', y = 0, head = PI / 4;
-  if (t >= L - .45 && t < L - .05) { pose = mixP(P.stand, P.crouch, eo(seg(t, L - .45, L - .1))); face = 'grit'; }
-  else if (t >= L - .05 && t < L + .25) { const u = seg(t, L - .05, L + .25); x = lerp(-1.6, 0, u); z = lerp(-.6, -2.25, u); y = Math.sin(u * PI) * 1.0 + u * .35; pose = P.leap; face = 'grit'; head = lerp(PI / 4, PI, u); }
-  else if (t >= L + .25 && t < 74.6) { x = 0; z = -2.3; y = .35 + Math.sin(t * 20) * .02; head = PI; pose = Object.assign({}, P.lift, { lKnee: [.9], rKnee: [.7], lHip: [-.3], rHip: [-.2] }); face = 'grit'; }
-  else if (t >= 74.6) { const u = eo(seg(t, 74.6, 74.85)); x = 0; z = -2.2; y = .35 * (1 - u); head = PI; pose = t < 76.6 ? mixP(P.lift, Object.assign({}, P.pry, { lEl: [-.8], rEl: [-.8] }), u) : mixP(P.pry, P.win, back(seg(t, 76.6, 77.0))); face = t < 76.43 ? 'grit' : 'happy';
-    if (t > 77.2) { head = lerp(PI, 0, eo(seg(t, 77.2, 77.7))); } }
+  const L = 73.75; let x = -1.6, z = -.6, pose = P.guard, face = 'angry', y = 0, head = PI * .8;
+  if (t >= 72.4 && t < 73.45) { const u = seg(t, 72.4, 73.45); x = lerp(-1.6, -.5, u); z = lerp(-.6, -1.5, u); pose = walkP(t * 11); }
+  else if (t >= 73.45 && t < L + .25) { const u = seg(t, 73.45, L + .25); x = lerp(-.5, 0, u); z = lerp(-1.5, -2.2, u); y = Math.sin(u * PI) * .35; pose = P.leap; face = 'grit'; head = lerp(PI * .8, PI, u); }
+  else if (t >= L + .25 && t < 74.6) { x = 0; z = -2.2; head = PI; pose = P.hug; face = 'grit'; }
+  else if (t >= 74.6) { x = 0; z = -2.2; head = PI; pose = t < 76.6 ? mixP(P.hug, Object.assign({}, P.pry, { lEl: [-.8], rEl: [-.8] }), eo(seg(t, 74.6, 74.85))) : mixP(P.pry, P.win, back(seg(t, 76.6, 77.0))); face = t < 76.43 ? 'grit' : 'happy';
+    if (t > 77.2) head = lerp(PI, 0, eo(seg(t, 77.2, 77.7))); }
   place(HERO, x, z, head, pose, face, y);
-  return shots(t, [[71.66, [0, 1.3, 2.4], [0, 1.6, -2.7], [0, 1.4, 1.9], [0, 1.7, -2.7], 40], [73.6, [-2.4, 1.4, 1.0], [0, 1.8, -2.4], [-2.0, 1.4, .7], [0, 1.8, -2.4], 36], [74.85, [0, 1.6, 2.2], [0, 1.4, -2.6], [0, 1.5, 1.4], [0, 1.4, -2.6], 38],
+  return shots(t, [[71.66, [0, 1.3, 2.4], [0, 1.6, -2.7], [0, 1.4, 1.9], [0, 1.7, -2.7], 40], [73.4, [-2.4, 1.4, 1.0], [0, 1.3, -2.4], [-2.0, 1.4, .7], [0, 1.3, -2.4], 36], [74.85, [0, 1.6, 2.2], [0, 1.4, -2.6], [0, 1.5, 1.4], [0, 1.4, -2.6], 38],
     [77.2, [.6, .5, 1.2], [0, 1.6, -2.0], [.5, .45, 1.0], [0, 1.6, -2.0], 34]]); } });
-fx(74.0, 0, 2.6, -2.5, 6, .7);
+fx(74.0, 0, .8, -2.5, 6, .7);
 
 // S8 store
 const st8 = set(); room(st8, 12, 7, 3.2, '#e9e6df', '#a7abb1'); for (let k = 0; k < 4; k++) { const x = -4.5 + k * 2.4; bx(2.1, 2.0, .5, '#f4f1ea', st8, x, 1.0, -3.0); for (let j = 0; j < 3; j++) for (let b = 0; b < 6; b++) bx(.28, .34, .3, ['#d8322b', '#f2c230', '#3c78b4', '#4a8a4a'][(b + j + k) % 4], st8, x - .85 + b * .34, .5 + j * .6, -2.85); }
@@ -265,11 +264,10 @@ for (let x = -12; x <= 12; x += 8) lamp(st9, x, -3.8, 1); const CAR = grp(st9); 
 scene(93.23, { set: st9, L: { sky: '#121a33', fog: '#121a33', fn: 10, ff: 40, hs: '#3a4f88', hg: '#1a1d26', hi: .9, sc: '#9fb4ff', si: .8, sd: [-4, 9, 4], focus: [1, 0, 0] }, run(t) {
   const blink = Math.sin(t * 14) > 0; pl1.position.set(4.1, 1.8, -1.6); pl2.position.set(4.6, 1.8, -1.6); pl1.intensity = blink ? 9 : 1; pl2.intensity = blink ? 1 : 9; pl3.position.set(-3, 3.5, -2.5); pl3.intensity = 6;
   LR.material = M('#ff2a1a', { emissive: '#ff2a1a', emissiveIntensity: blink ? 3 : .3 }); LB.material = M('#2a6bff', { emissive: '#2a6bff', emissiveIntensity: blink ? .3 : 3 });
-  let x = lerp(-5, -1.8, seg(t, 93.23, 95.0)), pose = t < 95 ? walkP(t * 8) : P.stand, face = 'calm', y = 0, pitch = 0;
-  if (t >= 99.66 && t < 100.5) { x = lerp(-1.8, -.4, seg(t, 99.66, 100.5)); pose = walkP(t * 8); }
-  else if (t >= 100.5 && t < 101.3) { const u = seg(t, 100.5, 101.3); x = lerp(-.4, 3.4, u); pose = Object.assign({}, P.crouch, { lSh: [-1.6, 0, .2], rSh: [-1.6, 0, -.2], hy: -.35 }); pitch = PI * 2 * eio(u); y = .55 * Math.sin(u * PI) + .25; face = 'grit'; }
-  else if (t >= 101.3) { x = 3.4; pose = mixP(P.crouch, P.win, back(seg(t, 101.3, 101.7))); face = 'happy'; }
-  HERO.root.rotation.order = 'YXZ'; place(HERO, x, 0, PI / 2, pose, face, y, pitch); if (t >= 100.5 && t < 101.3) { HERO.root.position.y = y + .9; HERO.hips.position.y = .95 - .9; }
+  let x = lerp(-5, -1.8, seg(t, 93.23, 95.0)), pose = t < 95 ? walkP(t * 10) : P.guard, face = 'calm', y = 0, pitch = 0;
+  if (t >= 99.66 && t < 101.3) { x = lerp(-1.8, 3.4, seg(t, 99.66, 101.3)); pose = walkP(t * 16); face = 'grit'; }
+  else if (t >= 101.3) { x = 3.4; pose = mixP(P.guard, P.win, back(seg(t, 101.3, 101.7))); face = 'happy'; }
+  place(HERO, x, 0, PI / 2, pose, face, y, pitch);
   let cx = lerp(4.4, 1.5, seg(t, 95.14, 96.2)), cpose = t < 96.2 ? walkP(t * 8) : P.stop, cf = t > 96.2 ? 'angry' : 'calm', cpitch = 0, cy = 0;
   if (t >= 100.85) { const u = seg(t, 100.85, 101.3); cpose = mixP(P.stop, P.lieStar, u); cpitch = -PI / 2 * eo(u); cy = .14 * u; cf = 'x'; cx = 1.5 + u * .6; }
   if (t >= 95.14) place(COP, cx, .3, -PI / 2, cpose, cf, cy, cpitch); else COP.root.visible = false;
@@ -281,19 +279,19 @@ IMP.push(97.97, 100.85); fx(100.9, 1.8, .4, .3, 9, .9);
 const st10 = set(); room(st10, 9, 6, 3, '#e7c98a', '#9b7350'); bx(2.6, .45, .9, '#b8352e', st10, -2.4, .3, -2.3); bx(2.6, .6, .25, '#b8352e', st10, -2.4, .8, -2.65); bx(3.4, .02, 2.2, '#3c78b4', st10, .2, .01, -.6); bx(.9, 2.1, .08, '#7a5634', st10, 3.6, 1.05, -2.92); winBox(st10, 0, 1.8, -2.94, 1.6, 1.0, '#ffe2a8');
 cyl(.05, .05, 1.6, 6, '#2b2d31', st10, 2.5, .8, -2.4); cyl(.25, .35, .35, 8, '#f4f1ea', st10, 2.5, 1.7, -2.4); const CAT = mkCat(); st10.add(CAT); const LADLE = grp(st10); bx(.03, .4, .03, '#999', LADLE, 0, .2, 0); bx(.1, .05, .1, '#999', LADLE, 0, 0, 0);
 scene(104.12, { set: st10, L: { sky: '#e9d2a0', hs: '#fff0d0', hg: '#80664a', hi: 1.2, si: 2.0, sd: [-3, 8, 5], focus: [0, 0, -1] }, run(t) {
-  let x = lerp(-2.6, -.6, seg(t, 104.12, 105.2)), z = -.6, pose = t < 105.2 ? walkP(t * 8, P.hug) : P.hug, face = 'happy', y = 0, pitch = 0, head = PI / 2;
-  const catFlat = t >= 105.5; CAT.position.set(.6, 0, -.6); CAT.rotation.set(0, PI, 0); CAT.scale.set(catFlat ? 1.25 : 1, catFlat ? .45 : 1, catFlat ? 1.25 : 1); CAT.userData.tail.rotation.z = Math.sin(t * 3) * .4;
-  if (t >= 105.2 && t < 105.5) { const u = eo(seg(t, 105.2, 105.5)); x = lerp(-.6, -.35, u); pitch = PI / 2 * u; y = .25 * u; pose = P.hug; }
-  else if (t >= 105.5 && t < 108.6) { x = -.35; pitch = PI / 2; y = .3; pose = P.hug; }
-  else if (t >= 108.6 && t < 109.0) { const u = eo(seg(t, 108.6, 109.0)); x = -.35; pitch = PI / 2 * (1 - u); y = .3 * (1 - u); pose = mixP(P.hug, P.stand, u); }
-  else if (t >= 109.0 && t < 110.3) { x = lerp(-.35, 1.9, seg(t, 109.56, 110.3)); pose = t > 109.56 ? walkP(t * 8, P.hug) : P.stand; }
-  else if (t >= 110.3) { const u = eo(seg(t, 110.3, 110.55)); x = 1.9 + u * .3; pitch = PI / 2 * u; y = .28 * u; pose = P.hug; face = 'happy'; }
+  let x = lerp(-2.6, -.3, seg(t, 104.12, 105.3)), z = -.6, pose = t < 105.3 ? walkP(t * 11, P.hug) : P.hug, face = 'happy', y = 0, pitch = 0, head = PI / 2;
+  const inLap = t >= 105.5 && t < 108.6; CAT.rotation.set(0, PI, 0); CAT.userData.tail.rotation.z = Math.sin(t * 3) * .4;
+  if (t < 105.5) { CAT.position.set(.6, 0, -.6); CAT.scale.set(1, 1, 1); }
+  else if (inLap) { const u = eo(seg(t, 105.5, 105.75)); CAT.position.set(lerp(.6, .12, u), lerp(0, .42, u), -.6); CAT.scale.set(1.15, .55, 1.15); CAT.rotation.z = Math.sin(t * 25) * .05; face = 'happy'; }
+  else { CAT.position.set(.5, 0, .1); CAT.scale.set(1.25, .45, 1.25); }
+  if (t >= 108.6 && t < 110.3) { x = lerp(-.3, 2.1, seg(t, 109.3, 110.3)); pose = t > 109.3 ? walkP(t * 11, P.hug) : P.guard; }
+  else if (t >= 110.3) { x = 2.1; pose = P.hug; face = 'happy'; }
   place(HERO, x, z, head, pose, face, y, pitch);
   let mx = lerp(4.6, 2.9, seg(t, 108.05, 108.8)), mp = t < 108.8 ? walkP(t * 8) : P.stop, mf = 'calm', mpitch = 0, my = 0;
   if (t >= 110.45) { const u = eo(seg(t, 110.45, 110.75)); mp = mixP(P.stand, P.lieStar, u); mpitch = -PI / 2 * u; my = .14 * u; mf = 'happy'; mx = 2.9 + u * .1; }
   if (t >= 108.05) place(MOM, mx, -.6, -PI / 2, mp, mf, my, mpitch); else MOM.root.visible = false;
   LADLE.visible = t >= 108.05 && t < 110.45; if (LADLE.visible) { const hp = new THREE.Vector3(); MOM.rEl.children[1].getWorldPosition(hp); LADLE.position.copy(hp); }
-  return shots(t, [[104.12, [0, 1.4, 3.6], [-.4, .8, -.6], [.3, 1.3, 3.2], [0, .7, -.6], 38], [105.45, [1.6, .5, 1.2], [.3, .4, -.6], [1.4, .45, 1.0], [.3, .4, -.6], 32], [108.0, [1.0, 1.4, 3.4], [2.6, 1.3, -.6], [1.2, 1.4, 3.1], [2.6, 1.3, -.6], 36],
+  return shots(t, [[104.12, [0, 1.4, 3.6], [-.4, .8, -.6], [.3, 1.3, 3.2], [0, .7, -.6], 38], [105.45, [1.6, .9, 1.6], [0, .5, -.6], [1.4, .85, 1.4], [0, .5, -.6], 34, 34, 1.5], [108.0, [1.0, 1.4, 3.4], [2.6, 1.3, -.6], [1.2, 1.4, 3.1], [2.6, 1.3, -.6], 36],
     [110.4, [2.0, 2.6, 2.4], [2.3, .3, -.6], [2.0, 2.8, 2.0], [2.3, .3, -.6], 36]]); } });
 IMP.push(105.5, 110.5); fx(105.5, .5, .2, -.6, 7, .7); fx(110.55, 2.6, .2, -.6, 7, .7);
 
@@ -307,7 +305,7 @@ scene(114.76, { set: st11, L: { sky: '#e9b48a', fog: '#e2a888', fn: 14, ff: 50, 
   if (!cloud) {
     const gp = t < 124.53 ? P.hold : t < 125.2 ? Object.assign({}, P.hold, { rSh: [-2.0, 0, -.3], rEl: [-.8 + Math.sin(t * 20) * .5] }) : P.hold;
     if (t < 123.3 - .5) { place(GIRL, 1.0, -2.6, -PI / 2.4, Object.assign({}, gp, { hy: Math.sin(t * 2) * .005 }), 'calm');
-      const hx = lerp(-6, -1.0, seg(t, 117.32, 119.4)); if (t > 117.0) place(HERO, hx, -2.4, PI / 2, t < 119.4 ? walkP(t * 8) : P.stand, 'happy'); else HERO.root.visible = false; }
+      const hx = lerp(-6, -1.0, seg(t, 117.32, 119.4)); if (t > 117.0) place(HERO, hx, -2.4, PI / 2, t < 119.4 ? walkP(t * 11) : P.guard, 'happy'); else HERO.root.visible = false; }
     else { choke(t, { from: [-1.0, -2.4], to: [.45, -2.55], head: PI / 2, L: 123.3, win: 1e9, tgt: null, preP: () => P.stand, preFace: 'happy', chokeP: P.hug });
       const u = seg(t, 128.9, 129.4); place(GIRL, 1.0 - u * .2, -2.6, -PI / 2.4 - u * 1.5, Object.assign({}, gp, u > 0 ? mixP(P.hold, P.leap, u) : {}), t > 125.2 ? 'smug' : 'calm'); if (u > 0) { HERO.root.rotation.x = -PI / 2 * eo(u); HERO.root.position.y = .14 * u; HERO.setFace('shock'); } }
     const hp = new THREE.Vector3(); (t < 128.9 ? GIRL.lEl.children[1] : GIRL.lEl.children[1]).getWorldPosition(hp); FLOW.position.copy(hp); FLOW.rotation.set(0, 0, 0);
@@ -326,12 +324,12 @@ for (let x = -36; x <= 36; x += 9) { cyl(.06, .08, 6, 5, '#6a4a30', st12, x, 3, 
 const FIN = [mkClock(), mkCoffee(), null, mkPrinter(), null, null, null, null, mkCat(), null]; const F_BUS = mkBus(); st12.add(F_BUS); F_BUS.position.set(-6, 3.0, -3.0); F_BUS.rotation.set(PI, .2, 0);
 const F_DOOR = bx(.78, 2.3, .06, '#b9bec5', st12, 0, .04, 0, { metalness: .6, roughness: .35 }); F_DOOR.rotation.x = -PI / 2; FIN.forEach(o => o && st12.add(o));
 const FXS = [-15, -11.5, -6, -8, -3.2, 0, 3, 6, 9, 12]; const FLIST = ['БУДИЛЬНИК', 'КОФЕМАШИНА', 'АВТОБУС', 'ПРИНТЕР', 'ЛИФТ', 'НАЧАЛЬНИК', 'ОХРАННИК', 'ПОЛИЦЕЙСКИЙ', 'КОТ', 'ДЕВУШКА'];
-scene(136.12, { set: st12, L: { sky: '#f0b98a', fog: '#e9a985', fn: 16, ff: 70, hs: '#ffd9b5', hg: '#6a5060', hi: 1.0, sc: '#ffae6a', si: 2.6, sd: [-8, 4, -2], focus: [0, 0, 0] }, run(t) {
+scene(136.12, { set: st12, L: { sky: '#f0b98a', fog: '#e9a985', fn: 16, ff: 70, hs: '#ffd9b5', hg: '#6a5060', hi: 1.0, sc: '#ffb57a', si: 2.6, sd: [-5, 6, 7], focus: [0, 0, 0] }, run(t) {
   const hx = lerp(-17, 14, eio(seg(t, 136.6, 146.2)));
   FIN[0].position.set(FXS[0], .17, 3.4); FIN[0].rotation.set(PI / 2, 0, .4); FIN[1].position.set(FXS[1], .22, 3.6); FIN[1].rotation.set(PI / 2, .4, 0); FIN[3].position.set(FXS[3], .25, 3.5); FIN[3].rotation.set(0, .6, PI / 2); FIN[8].position.set(FXS[8], 0, 3.3); FIN[8].scale.set(1.25, .45, 1.25);
   F_DOOR.position.set(FXS[4], .04, 3.4); F_DOOR.rotation.set(-PI / 2, 0, .5);
   [[BOSS, 5, 1], [GUARD, 6, -1], [COP, 7, 1], [GIRL, 9, -1]].forEach(([c, i, s]) => place(c, FXS[i], 3.3, s * PI / 2, P.lieStar, i === 9 ? 'smug' : 'x', .14, -PI / 2));
-  let pose = walkP(hx * 2.3), face = 'calm', head = PI / 2; if (t > 146.2) { const u = eo(seg(t, 146.2, 146.8)); head = lerp(PI / 2, 0, u); pose = mixP(P.stand, P.win, back(seg(t, 148.4, 148.8))); face = t > 148.4 ? 'happy' : 'calm'; }
+  let pose = walkP(hx * 3.2), face = 'calm', head = PI / 2; if (t > 146.2) { const u = eo(seg(t, 146.2, 146.8)); head = lerp(PI / 2, 0, u); pose = mixP(P.stand, P.win, back(seg(t, 148.4, 148.8))); face = t > 148.4 ? 'happy' : 'calm'; }
   place(HERO, hx, 1.8, head, pose, face);
   return shots(t, [[136.12, [hx - 1.5, .5, 5.0], [hx + 1, 1.3, 1.8], [hx - 1.5, .5, 5.0], [hx + 1, 1.3, 1.8], 40].map((v, i) => i === 1 || i === 3 ? [v[0], v[1], v[2]] : v),
     [138.0, [hx, 2.4, 8.4], [hx, 1.0, 2.4], [hx, 2.4, 8.4], [hx, 1.0, 2.4], 40], [144.6, [hx + 3.5, .6, 4.4], [hx, 1.4, 1.8], [hx + 3.0, .5, 4.0], [hx, 1.5, 1.8], 38], [146.6, [14, .35, 4.6], [14, 1.6, 1.8], [14, .35, 4.0], [14, 1.6, 1.8], 36]]); } });
@@ -371,7 +369,7 @@ function drawLabels(t) {
     ox.restore(); } }
 function drawCaps(t) { const c = CAPS.find(c => t >= c.t0 && t < c.t1); if (!c) return; const sz = 88; ox.font = F(900, sz); ox.textAlign = 'left'; ox.lineJoin = 'round';
   const words = c.w, lines = []; let cur = [], cw = 0; const sp = ox.measureText(' ').width; for (const w of words) { const ww = ox.measureText(w[0]).width; if (cur.length && cw + sp + ww > 920) { lines.push(cur); cur = []; cw = 0; } cur.push([w, ww]); cw += (cur.length > 1 ? sp : 0) + ww; } lines.push(cur);
-  const pop = back(seg(t, c.t0, c.t0 + .12)), lh = sz * .98, y0 = 1270 - (lines.length - 1) * lh / 2; ox.save(); ox.translate(540, y0); ox.scale(pop, pop);
+  const pop = back(seg(t, c.t0, c.t0 + .12)), lh = sz * .98, y0 = 1500 - (lines.length - 1) * lh / 2; ox.save(); ox.translate(540, y0); ox.scale(pop, pop);
   lines.forEach((ln, li) => { const tw = ln.reduce((a, [, w], i) => a + w + (i ? sp : 0), 0); let x = -tw / 2; ln.forEach(([w, ww]) => { const said = t >= w[1]; const col = w[2] === 'r' ? '#ff3b2f' : w[2] === 'y' ? '#ffd23a' : '#ffffff';
       ox.shadowColor = 'rgba(0,0,0,.55)'; ox.shadowBlur = 18; ox.shadowOffsetY = 6; ox.lineWidth = 12; ox.strokeStyle = 'rgba(12,12,14,.9)'; ox.strokeText(w[0], x, li * lh); ox.shadowColor = 'transparent'; ox.fillStyle = said ? col : 'rgba(150,150,155,1)'; ox.fillText(w[0], x, li * lh); x += ww + sp; }); });
   ox.restore(); }
@@ -385,7 +383,7 @@ window.render = function (f) {
   if (HERO.tail1) { HERO.tail1.visible = HERO.tail2.visible = true; } HERO.head.children.forEach(m => m.visible = true);
   light(sc.L); const cm = sc.run(t);
   let sx = 0, sy = 0; for (const ti of IMP) { const d = t - ti; if (d >= 0 && d < .35) { const q = (.35 - d) / .35; sx += nz(f, 1) * .06 * q; sy += nz(f, 2) * .05 * q; } }
-  const hand = .012, kk = cm.k ?? 1.75; const pp = cm.p.map((v, i) => cm.l[i] + (v - cm.l[i]) * kk); pp[1] = Math.max(pp[1], .22); cam.position.set(pp[0] + Math.sin(t * 1.3) * hand + sx, pp[1] + Math.sin(t * 1.7) * hand + sy, pp[2]); cam.fov = cm.f; cam.updateProjectionMatrix(); cam.lookAt(cm.l[0] + sx * .5, cm.l[1] + sy * .5, cm.l[2]);
+  const hand = .012, kk = cm.k ?? 1.75; const dv = kk > 1.6 ? .38 : 0; cm.p[1] -= dv; cm.l[1] -= dv; const pp = cm.p.map((v, i) => cm.l[i] + (v - cm.l[i]) * kk); pp[1] = Math.max(pp[1], .22); cam.position.set(pp[0] + Math.sin(t * 1.3) * hand + sx, pp[1] + Math.sin(t * 1.7) * hand + sy, pp[2]); cam.fov = cm.f; cam.updateProjectionMatrix(); cam.lookAt(cm.l[0] + sx * .5, cm.l[1] + sy * .5, cm.l[2]);
   drawFX(t); R.render(S, cam);
   ox.clearRect(0, 0, W, H); ox.drawImage(glc, 0, 0); vignette(); drawLabels(t); drawCaps(t);
   const cutFlash = CUTS.some(c => t >= c && t < c + 1 / FPS) && t > .1; if (cutFlash) { ox.fillStyle = 'rgba(255,255,255,.12)'; ox.fillRect(0, 0, W, H); }
