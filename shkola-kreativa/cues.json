@@ -1,0 +1,54 @@
+{
+ "fps": 24,
+ "frames": 240,
+ "bpm": 120,
+ "whooshIn": 0,
+ "tick": 4,
+ "scribble": [
+  4,
+  12
+ ],
+ "pop": 12,
+ "whooshOut": 12,
+ "launch": 20,
+ "ting": 22,
+ "land": 36,
+ "hops": [
+  48,
+  60,
+  72
+ ],
+ "bigLand": 84,
+ "spinWhoosh": 86,
+ "spinSmear": 94,
+ "tadaLand": 108,
+ "inflate": [
+  120,
+  140
+ ],
+ "choke": 140,
+ "burst": 144,
+ "letters": [
+  158,
+  161,
+  163,
+  166,
+  168,
+  171,
+  173,
+  176,
+  178,
+  181,
+  183,
+  186,
+  188
+ ],
+ "oPop": 192,
+ "pencilIn": 196,
+ "underline": [
+  202,
+  212
+ ],
+ "blink": 222,
+ "holdFrom": 210
+}
