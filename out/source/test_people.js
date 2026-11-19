@@ -1,0 +1,10 @@
+const C=require('./core'),{P,person}=require('./people');
+const F=new C.Frame(1080,1920);const x=F.ctx;
+x.fillStyle=C.lg(x,0,0,0,1920,[[0,'#0d2233'],[1,'#071018']]);x.fillRect(0,0,1080,1920);
+const Lc={key:C.hex('#cfe6ff'),kx:-1,amb:C.hex('#2a3a66'),rim:C.hex('#9fe0ff'),rimX:1,rimI:0.9};
+const Lw={key:C.hex('#ffd59a'),kx:-1,amb:C.hex('#6a3a3a'),rim:C.hex('#ffc070'),rimX:1,rimI:0.9};
+const names=['keeper','dima','dima19','mom45','mom63','dad48','dad66'];
+names.forEach((n,i)=>{const col=i%4,row=Math.floor(i/4);person(x,P[n],{x:150+col*260,y:850+row*800,h:700,face:1,L:i>1&&i<6&&i!=4?Lw:Lc,pose:{aR:[0.15,0.3],walk:i==2?0.8:null},ex:{eye:1,smile:0.2}})});
+person(x,P.keeper,{x:850,y:1700+1500,h:3200,front:true,L:Lw,ex:{eye:0.9,smile:0.3}});
+C.post(F,0,{});
+require('fs').writeFileSync('test_people.png',F.canvas.toBuffer('image/png'));
