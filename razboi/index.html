@@ -342,7 +342,7 @@ function subtitles(t){
     }
     ctx.setTransform(1,0,0,1,0,0); ctx.save(); ctx.globalAlpha = a;
     const lh = 46, h = L.lines.length*lh + 22, y0 = 1046 - h;
-    ctx.fillStyle = 'rgba(4,6,10,.62)'; ctx.beginPath(); ctx.roundRect(W/2 - L.w/2 - 28, y0, L.w + 56, h, 14); ctx.fill();
+    ctx.fillStyle = (t > TL.scenes.F[0] - .3 && t < TL.scenes.F[1] + .3) ? 'rgba(4,6,10,.9)' : 'rgba(4,6,10,.62)'; ctx.beginPath(); ctx.roundRect(W/2 - L.w/2 - 28, y0, L.w + 56, h, 14); ctx.fill();
     ctx.fillStyle = 'rgba(217,179,108,.9)'; ctx.fillRect(W/2 - L.w/2 - 28, y0 + 14, 3, h - 28);
     L.lines.forEach((l, i) => txt(ctx, l, W/2, y0 + 45 + i*lh, {size: 34, w: 500, align: 'center', color: '#f4f1ea'}));
     ctx.restore();
@@ -352,8 +352,8 @@ function subtitles(t){
 // ============================================================ scene windows / transitions
 function sceneAlpha(key, t){
   const [s, e] = TL.scenes[key];
-  const inA = key === 'A' ? 1 : key === 'C' ? clamp((t - s + .02)/.02) : key === 'H' ? ss((t - s - .3)/.6) : ss((t - s + .22)/.44);
-  const outA = key === 'H' ? 1 : key === 'B' ? clamp((e + .02 - t)/.02) : key === 'G' ? clamp((e + 1.6 - t)/.6) : 1 - ss((t - e + .22)/.44);
+  const inA = key === 'A' ? 1 : key === 'C' ? clamp((t - s + .02)/.02) : key === 'H' ? ss((t - s - .45)/.6) : ss((t - s + .22)/.44);
+  const outA = key === 'H' ? 1 : key === 'B' ? clamp((e + .02 - t)/.02) : key === 'G' ? clamp((e + .95 - t)/.6) : 1 - ss((t - e + .22)/.44);
   return Math.min(inA, outA);
 }
 function whip(t, key){ // camera z offset for dolly-through transitions
@@ -532,7 +532,7 @@ const DEF = 'это нападение с целью хищения чужого
 function camD(t){
   const w = t - 50.93; const ex = eIO3(prog(w, 42.85, 1.3));
   return {x: lerp(-40, 40, ss(prog(w, 32.4, 11))) , y: lerp(-10, 60, ex), z: lerp(-1000, -960, ss(prog(w, 32.4, 10))) + whip(t,'D'),
-          roll: .006*Math.sin(w*.4) - .012*Math.sin(ex*Math.PI), fz: lerp(0, -150, ex), dof: .014, ly: 0};
+          roll: .006*Math.sin(w*.4) - .012*Math.sin(ex*Math.PI), fz: lerp(0, -40, ex), dof: .014, ly: 0};
 }
 function sceneD(t, a){
   const w = t - 50.93; const c = camD(t); worldBegin(c); ctx.globalAlpha = a;
@@ -548,18 +548,18 @@ function sceneD(t, a){
   // example
   if (w > 42.9) {
     const p1 = prog(w, 43.25, .7), p2 = prog(w, 44.3, .7), p3 = prog(w, 45.1, .7);
-    obj(-480, 130, -150, a*clamp(p1*2.5), k => {
+    obj(-430, 130, -40, a*clamp(p1*2.5), k => {
       k.translate(-120*(1 - eOut3(p1)), 0);
       icon(k, 'rifle', 380, {lw: 3, color: GOLD2, glow: 14});
       txt(k, 'угроза оружием', 0, 110, {size: 34, w: 600, align: 'center', color: WHITE});
     }, {blur: (1 - eOut3(p1))*8});
-    obj(0, 120, -150, a*clamp(p2*3), k => icon(k, 'arrow', 140, {lw: 4, p: eOut3(p2)}));
-    obj(470, 120, -150, a*clamp(p3*2.5), k => {
+    obj(-10, 120, -40, a*clamp(p2*3), k => icon(k, 'arrow', 140, {lw: 4, p: eOut3(p2)}));
+    obj(400, 120, -40, a*clamp(p3*2.5), k => {
       k.translate(0, 50*(1 - eOutBack(p3)));
-      icon(k, 'phone', 120, {lw: 4, glow: 10}); k.translate(95, 10); icon(k, 'money', 130, {lw: 4, glow: 10, bg: '#0d121b'});
-      txt(k, 'чужие деньги или телефон', -45, 110, {size: 34, w: 600, align: 'center', color: WHITE});
+      txt(k, 'чужие деньги или телефон', 0, 120, {size: 34, w: 600, align: 'center', color: WHITE});
+      k.translate(-55, 0); icon(k, 'phone', 120, {lw: 4, glow: 10}); k.translate(105, 10); icon(k, 'money', 130, {lw: 4, glow: 10, bg: '#0d121b'});
     });
-    obj(0, -40, -150, a*ss(prog(w, 43.2, .5)), k => txt(k, 'НАПРИМЕР', 0, 0, {size: 26, w: 700, ls: 12, align: 'center', color: GOLD}));
+    obj(0, -40, -40, a*ss(prog(w, 43.2, .5)), k => txt(k, 'НАПРИМЕР', 0, 0, {size: 26, w: 700, ls: 12, align: 'center', color: GOLD}));
   }
 }
 
@@ -649,7 +649,7 @@ function drawCard(i, w){
       k.fillStyle = 'rgba(255,255,255,.04)'; k.beginPath(); k.roundRect(0, 0, cw, 250, 18); k.fill();
       k.fillStyle = cl.c; k.fillRect(0, 22, 5, 206);
       txt(k, cl.title, 30, 62, {size: 30, w: 800, ls: 3, color: cl.c});
-      cl.lines.forEach((s, j) => { const q = prog(w, cl.t + .5 + j*1.0, .4); k.globalAlpha = clamp(p*2)*clamp(q*2); txt(k, '— ' + s, 30, 130 + j*58, {size: 34, w: 500, color: WHITE}); });
+      cl.lines.forEach((s, j) => { const q = prog(w, cl.t + .5 + j*1.0, .4); k.globalAlpha = clamp(p*2)*clamp(q*2); txt(k, '— ' + s, 30, 130 + j*58, {size: 30, w: 500, color: WHITE}); });
       k.restore();
     });
   }
@@ -793,10 +793,10 @@ function camG(t){
   const i0 = Math.floor(fi), i1 = Math.min(3, i0 + 1);
   const top = FLOOR - lerp(STEPS[i0].h, STEPS[i1].h, fi - i0);
   const over = eIO3(prog(w, 123.9, 2.2));
-  const sink = eIn3(prog(w, 126.75, 1.4));
+  const sink = eIO3(prog(w, 126.6, 1.0));
   const zf = -1350, sF = FOC/(-zf), mid = (top + FLOOR)/2 - 40, cyF = top - 260;
   const lyF = -(mid - cyF)*sF;
-  return {x: lerp(cx + 70, 110, over) + 40*Math.sin(w*.3), y: lerp(cyF, -120, over) + 30*Math.sin(w*.25) + 600*sink, z: lerp(zf, -2150, over) + whip(t,'G') - 200*sink,
+  return {x: lerp(cx + 70, 110, over) + 40*Math.sin(w*.3), y: lerp(cyF, -120, over) + 30*Math.sin(w*.25) - 700*sink, z: lerp(zf, -2150, over) + whip(t,'G') - 200*sink,
           roll: .008*Math.sin(w*.35) + .02*Math.sin(Math.PI*clamp(fi % 1)), fz: 0, dof: .006, ly: lerp(lyF, -30, over)};
 }
 function face(pts, fill, stroke){
@@ -863,7 +863,7 @@ function sceneH(t, a){
   const w = t - 50.93; const c = camH(t); worldBegin(c, c.sx, c.sy); ctx.globalAlpha = a;
   drawDust(t, a);
   const p1out = ss(prog(w, 131.4, .8));
-  flyText('Разбой —', 0, -150, 600*p1out, w, 127.1, {size: 96, fam: 'PF', w: 900, stg: .04, dur: .6, dz: -500, rot: .2, color: 'gold', alpha: a*(1 - p1out)});
+  flyText('Разбой —', 0, -150, 600*p1out, w, 127.6, {size: 96, fam: 'PF', w: 900, stg: .04, dur: .6, dz: -500, rot: .2, color: 'gold', alpha: a*(1 - p1out)});
   const lay1 = layout('серьёзное уголовное правонарушение', 72, 'PF', 700, 1600, 90, 'center');
   obj(0, -20, 600*p1out, a*(1 - p1out), k => drawPara(k, lay1, wordTimes(lay1, 128.6, 130.6), w, {size: 72, fam: 'PF', w: 700, color: WHITE, hi: new Set([0]), under: true}));
   // 15 years
@@ -897,7 +897,7 @@ function sceneH(t, a){
 // ============================================================ frame
 function tintFor(t){
   const w = t - 50.93;
-  if (t >= TL.scenes.G[0] - .3 && t < TL.scenes.H[0] + 1.5) return mixC([217,179,108], [214,70,52], heat(w));
+  if (t >= TL.scenes.G[0] - .3) return mixC([217,179,108], [214,70,52], heat(w) * (1 - ss(prog(t, TL.scenes.H[0] - .2, 2.6))));
   return [217,179,108];
 }
 async function renderSample(t){

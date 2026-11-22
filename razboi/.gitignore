@@ -1,2 +1,4 @@
 build/
 assets/ktk/
+*.mp4
+!assets/ktk.mp4

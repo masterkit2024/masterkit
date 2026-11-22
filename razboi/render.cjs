@@ -4,9 +4,10 @@ const { spawn } = require('child_process');
 (async () => {
   const wi = +process.argv[2], WN = +process.argv[3];
   const TOTAL = Math.round(200.5 * 60);
-  const a = Math.floor(TOTAL * wi / WN), b = Math.floor(TOTAL * (wi + 1) / WN);
+  let a = Math.floor(TOTAL * wi / WN), b = Math.floor(TOTAL * (wi + 1) / WN);
+  if (process.argv[4]) { a = +process.argv[4]; b = +process.argv[5]; }
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', '60', '-c:v', 'mjpeg', '-i', '-',
-    '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', '-r', '60', '-threads', '2', `build/seg_${wi}.mp4`], {stdio: ['pipe', 'inherit', 'inherit']});
+    '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', '-r', '60', '-threads', '2', process.argv[6] || `build/seg_${wi}.mp4`], {stdio: ['pipe', 'inherit', 'inherit']});
   const br = await chromium.launch();
   const p = await br.newPage({viewport: {width: 1920, height: 1080}});
   p.on('pageerror', e => console.log('ERR', e.message));
