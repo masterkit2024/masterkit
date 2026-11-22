@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Разбой — ст. 192 УК РК</title>
+<style>
+@font-face{font-family:'PF';src:url(assets/pf-cyr.woff2) format('woff2');font-weight:400 900;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;}
+@font-face{font-family:'PF';src:url(assets/pf-lat.woff2) format('woff2');font-weight:400 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'IN';src:url(assets/Inter-Regular.otf);font-weight:400}
+@font-face{font-family:'IN';src:url(assets/Inter-Medium.otf);font-weight:500}
+@font-face{font-family:'IN';src:url(assets/Inter-SemiBold.otf);font-weight:600}
+@font-face{font-family:'IN';src:url(assets/Inter-Bold.otf);font-weight:700}
+@font-face{font-family:'IN';src:url(assets/Inter-ExtraBold.otf);font-weight:800}
+html,body{margin:0;background:#000;overflow:hidden}
+canvas{display:block;width:100vw;height:auto}
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+'use strict';
+// ============================================================ setup
+const W = 1920, H = 1080, FPS = 60, FOC = 1000;
+const main = document.getElementById('c');
+const mctx = main.getContext('2d');
+const work = document.createElement('canvas'); work.width = W; work.height = H;
+let ctx = work.getContext('2d');
+const acc = document.createElement('canvas'); acc.width = W; acc.height = H;
+const actx = acc.getContext('2d');
+let TL, ART, CAM = {x:0,y:0,z:-1000,roll:0,fz:0,dof:0,ly:0};
+
+const GOLD = '#d9b36c', GOLD2 = '#f3d79a', WHITE = '#f2efe8', MUTED = '#8f98ab', RED = '#d0473b';
+
+// ============================================================ math
+const clamp = (v, a=0, b=1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const ss = k => { k = clamp(k); return k*k*(3-2*k); };
+const eOut3 = k => { k = clamp(k); return 1 - Math.pow(1-k, 3); };
+const eIn3 = k => { k = clamp(k); return k*k*k; };
+const eIO3 = k => { k = clamp(k); return k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k+2, 3)/2; };
+const eOut5 = k => { k = clamp(k); return 1 - Math.pow(1-k, 5); };
+const eOutBack = (k, s=1.6) => { k = clamp(k); const c3 = s+1; return 1 + c3*Math.pow(k-1,3) + s*Math.pow(k-1,2); };
+const spring = k => { k = clamp(k); return 1 - Math.exp(-5.5*k) * Math.cos(9*k); };
+const prog = (t, a, d) => clamp((t - a) / d);
+const W2T = w => w < 32.42 ? w : w + 50.93;   // voice time -> film time
+function hash(n){ const s = Math.sin(n*127.1+311.7)*43758.5453; return s - Math.floor(s); }
+function mixC(a, b, k){ return a.map((v,i)=>Math.round(lerp(v, b[i], k))); }
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+// ============================================================ assets
+const imgCache = new Map();
+function loadImg(src){
+  if (imgCache.has(src)) return imgCache.get(src);
+  const p = new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+  imgCache.set(src, p);
+  if (imgCache.size > 40) { const k = imgCache.keys().next().value; if (!k.includes('article')) imgCache.delete(k); }
+  return p;
+}
+let ktkImg = null;
+async function ktkFrame(t){
+  const i = Math.max(0, Math.min(3055, Math.floor((t - TL.ktkStart) * FPS + 1e-6)));
+  return loadImg('assets/ktk/' + String(i + 1).padStart(5, '0') + '.jpg');
+}
+
+// grain tiles
+const grain = [];
+for (let g = 0; g < 4; g++) {
+  const c = document.createElement('canvas'); c.width = 480; c.height = 270;
+  const x = c.getContext('2d'); const id = x.createImageData(480, 270);
+  for (let i = 0; i < id.data.length; i += 4) { const v = 128 + (Math.random() - .5) * 255; id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255; }
+  x.putImageData(id, 0, 0); grain.push(c);
+}
+// bokeh sprite
+const bokeh = document.createElement('canvas'); bokeh.width = bokeh.height = 64;
+{ const b = bokeh.getContext('2d'); const g = b.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,226,160,1)'); g.addColorStop(.35,'rgba(255,214,140,.55)'); g.addColorStop(1,'rgba(255,200,120,0)');
+  b.fillStyle = g; b.fillRect(0,0,64,64); }
+const dust = []; for (let i = 0; i < 170; i++) dust.push({x: hash(i)*4000, y: hash(i+500)*2600, z: hash(i+900)*3000, r: 2 + hash(i+77)*5, ph: hash(i+33)*6.28, sp: .3 + hash(i+12)});
+const smallC = document.createElement('canvas'); smallC.width = 192; smallC.height = 108;
+const sctx = smallC.getContext('2d');
+
+// ============================================================ projection helpers
+function proj(x, y, z){
+  const d = z - CAM.z; if (d < 25) return null;
+  const s = FOC / d;
+  return {x: (x - CAM.x) * s, y: (y - CAM.y) * s + (CAM.ly || 0), s, d};
+}
+function nearFade(d){ return clamp((d - 40) / 260); }
+function dofBlur(z){ return Math.min(16, Math.abs(z - CAM.fz) * (CAM.dof || 0)); }
+function obj(x, y, z, alpha, fn, o = {}){
+  if (alpha <= 0.003) return;
+  const p = proj(x, y, z); if (!p) return;
+  const a = alpha * nearFade(p.d); if (a <= 0.003) return;
+  ctx.save();
+  ctx.translate(p.x, p.y); ctx.scale(p.s, p.s);
+  if (o.rot) ctx.rotate(o.rot);
+  if (o.sc) ctx.scale(o.sc, o.sc);
+  ctx.globalAlpha *= a;
+  const b = (o.noDof ? 0 : dofBlur(z)) + (o.blur || 0);
+  if (b > 0.6) ctx.filter = `blur(${b.toFixed(1)}px)`;
+  fn(ctx, p);
+  ctx.restore();
+}
+function font(c, size, fam='IN', weight=500, ls=0){ c.font = `${weight} ${size}px ${fam}`; c.letterSpacing = ls + 'px'; }
+function txt(c, s, x, y, o = {}){
+  font(c, o.size || 40, o.fam || 'IN', o.w || 500, o.ls || 0);
+  c.textAlign = o.align || 'left'; c.textBaseline = o.base || 'alphabetic';
+  c.fillStyle = typeof o.color === 'function' ? o.color(c) : (o.color || WHITE);
+  if (o.glow) { c.shadowColor = o.glowC || 'rgba(243,215,154,.55)'; c.shadowBlur = o.glow; }
+  c.fillText(s, x, y);
+  c.shadowBlur = 0;
+}
+function goldGrad(c, size){ const g = c.createLinearGradient(0, -size*.8, 0, size*.1); g.addColorStop(0,'#fff4da'); g.addColorStop(.55, GOLD2); g.addColorStop(1, '#b8873e'); return g; }
+function whiteGrad(c, size){ const g = c.createLinearGradient(0, -size*.8, 0, size*.1); g.addColorStop(0,'#ffffff'); g.addColorStop(1, '#cfc8b8'); return g; }
+
+// per-glyph fly-in in world space
+const measureCache = new Map();
+function glyphs(str, size, fam, w, ls){
+  const key = str + size + fam + w + ls;
+  if (measureCache.has(key)) return measureCache.get(key);
+  font(ctx, size, fam, w, 0);
+  const out = []; let x = 0;
+  for (const ch of str) { const cw = ctx.measureText(ch).width; out.push({ch, x, w: cw}); x += cw + ls; }
+  const r = {g: out, total: x - ls}; measureCache.set(key, r); return r;
+}
+function flyText(str, x, y, z, t, t0, o){
+  const {size=100, fam='PF', w=900, ls=0, align='center', stg=.045, dur=.7, dz=-600, dy=0, rot=.25, ease=eOutBack, color=WHITE, alpha=1, glow=0, mblur=8} = o;
+  const G = glyphs(str, size, fam, w, ls);
+  const x0 = align === 'center' ? -G.total/2 : align === 'right' ? -G.total : 0;
+  G.g.forEach((g, i) => {
+    const p = prog(t, t0 + i*stg, dur); if (p <= 0) return;
+    const e = ease(p);
+    const sgn = (i % 2 ? 1 : -1);
+    obj(x + x0 + g.x + g.w/2, y + dy*(1-e), z + dz*(1-e), alpha*clamp(p*3), c => {
+      c.rotate(rot*sgn*(1-eOut3(p)));
+      txt(c, g.ch, 0, 0, {size, fam, w, align:'center', color: color === 'gold' ? goldGrad(c,size) : color === 'white' ? whiteGrad(c,size) : color, glow});
+    }, {blur: (1 - eOut3(p)) * mblur});
+  });
+}
+
+// paragraph layout with timed words
+const layCache = new Map();
+function layout(text, size, fam, w, maxW, lh, align='left'){
+  const key = [text,size,fam,w,maxW,lh,align].join('|');
+  if (layCache.has(key)) return layCache.get(key);
+  font(ctx, size, fam, w, 0);
+  const sp = ctx.measureText(' ').width;
+  const words = text.split(' ').map((s, i) => ({s, i, w: ctx.measureText(s).width}));
+  const lines = [[]]; let lw = 0;
+  for (const wd of words) {
+    const add = (lines[lines.length-1].length ? sp : 0) + wd.w;
+    if (lw + add > maxW && lines[lines.length-1].length) { lines.push([wd]); lw = wd.w; }
+    else { lines[lines.length-1].push(wd); lw += add; }
+  }
+  lines.forEach((ln, li) => {
+    const tw = ln.reduce((a, b) => a + b.w, 0) + sp*(ln.length-1);
+    let x = align === 'center' ? -tw/2 : 0;
+    ln.forEach(wd => { wd.x = x; wd.y = li*lh; x += wd.w + sp; });
+  });
+  const r = {words, lines: lines.length, h: lines.length*lh}; layCache.set(key, r); return r;
+}
+function wordTimes(lay, ws, we){
+  const tot = lay.words.reduce((a, b) => a + b.s.length + 1, 0); let acc = 0;
+  return lay.words.map(wd => { const t = ws + (we - ws) * acc / tot; acc += wd.s.length + 1; return t; });
+}
+function drawPara(c, lay, times, now, o){
+  const {size=40, fam='IN', w=500, color=WHITE, hi=new Set(), hiColor=GOLD2, dim=1, under=true} = o;
+  font(c, size, fam, w, 0); c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  lay.words.forEach((wd, k) => {
+    const p = prog(now, times[k], .45); if (p <= 0) return;
+    const e = eOut3(p);
+    c.save(); c.globalAlpha *= clamp(p*2) * dim; c.translate(wd.x, wd.y + 22*(1-e));
+    const isH = hi.has(k);
+    c.fillStyle = isH ? hiColor : color;
+    if (isH) { c.shadowColor = 'rgba(243,215,154,.45)'; c.shadowBlur = 18*clamp(p*2); }
+    c.fillText(wd.s, 0, 0); c.shadowBlur = 0;
+    if (isH && under) { const u = eIO3(prog(now, times[k] + .15, .45)); c.fillStyle = 'rgba(217,179,108,.85)'; c.fillRect(0, size*.18, wd.w*u, Math.max(2, size*.06)); }
+    c.restore();
+  });
+}
+
+// ============================================================ icons (100-unit box)
+function icon(c, name, size, o = {}){
+  const s = size / 100, lw = (o.lw || 4) / s;
+  c.save(); c.scale(s, s);
+  c.strokeStyle = o.color || GOLD2; c.fillStyle = o.fill || o.color || GOLD2; c.lineWidth = lw; c.lineJoin = 'round'; c.lineCap = 'round';
+  if (o.glow) { c.shadowColor = 'rgba(243,215,154,.6)'; c.shadowBlur = o.glow; }
+  if (o.p !== undefined && o.p < 1) { c.setLineDash([700*o.p, 700]); }
+  const B = () => c.beginPath();
+  switch (name) {
+    case 'pin': B(); c.moveTo(0,46); c.bezierCurveTo(-8,28,-34,8,-34,-14); c.arc(0,-14,34,Math.PI,0); c.bezierCurveTo(34,8,8,28,0,46); c.stroke(); B(); c.arc(0,-14,11,0,7); c.stroke(); break;
+    case 'person': B(); c.arc(0,-30,17,0,7); c.fill(); B(); c.moveTo(-34,46); c.bezierCurveTo(-34,0,-20,-6,0,-6); c.bezierCurveTo(20,-6,34,0,34,46); c.closePath(); c.fill(); break;
+    case 'rifle': {
+      const P = [[-50,-2],[-47,-9],[-22,-7],[-17,-10],[9,-10],[11,-7],[50,-7],[50,-3],[11,-3],[6,1],[-6,1],[-8,5],[-12,5],[-14,1],[-18,2],[-30,13],[-46,15],[-50,10]];
+      B(); P.forEach((p,i)=> i? c.lineTo(p[0],p[1]) : c.moveTo(p[0],p[1])); c.closePath();
+      if (o.filled) c.fill(); else c.stroke();
+      B(); c.arc(-10,4,5,0,Math.PI); c.stroke(); break; }
+    case 'money':
+      B(); c.roundRect(-34,-34,72,42,5); c.stroke();
+      c.fillStyle = o.bg || '#0b0f16'; B(); c.roundRect(-42,-22,80,46,6); c.fill(); c.stroke();
+      B(); c.arc(-2,1,12,0,7); c.stroke();
+      c.fillStyle = o.color || GOLD2; font(c, 16, 'IN', 700); c.textAlign='center'; c.textBaseline='middle'; c.fillText('₸', -2, 2); break;
+    case 'phone': B(); c.roundRect(-22,-42,44,84,9); c.stroke(); B(); c.moveTo(-8,-33); c.lineTo(8,-33); c.stroke(); B(); c.arc(0,32,3,0,7); c.fill(); break;
+    case 'cuffs':
+      B(); c.arc(-27,14,19,0,7); c.stroke(); B(); c.arc(27,14,19,0,7); c.stroke();
+      B(); c.moveTo(-27,-5); c.lineTo(-27,-14); c.moveTo(27,-5); c.lineTo(27,-14); c.stroke();
+      for (let i=0;i<4;i++){ B(); c.ellipse(-15+i*10,-18,6,4,0,0,7); c.stroke(); } break;
+    case 'scales':
+      B(); c.moveTo(0,-42); c.lineTo(0,40); c.moveTo(-24,42); c.lineTo(24,42); c.moveTo(-42,-30); c.lineTo(42,-30); c.stroke();
+      for (const sx of [-1,1]) { B(); c.moveTo(sx*42,-30); c.lineTo(sx*42-14,6); c.moveTo(sx*42,-30); c.lineTo(sx*42+14,6); c.stroke(); B(); c.arc(sx*42,6,15,0,Math.PI); c.closePath(); c.stroke(); }
+      B(); c.arc(0,-42,5,0,7); c.fill(); break;
+    case 'doc':
+      B(); c.moveTo(-30,-42); c.lineTo(14,-42); c.lineTo(30,-26); c.lineTo(30,42); c.lineTo(-30,42); c.closePath(); c.stroke();
+      B(); c.moveTo(14,-42); c.lineTo(14,-26); c.lineTo(30,-26); c.stroke();
+      for (const y of [-12,2,16,30]) { B(); c.moveTo(-18,y); c.lineTo(y===30?6:18,y); c.stroke(); } break;
+    case 'gavel':
+      c.save(); c.rotate(-.65); B(); c.roundRect(-34,-36,52,24,5); c.stroke(); B(); c.moveTo(-8,-12); c.lineTo(-8,34); c.stroke(); c.restore();
+      B(); c.roundRect(-6,30,52,10,3); c.stroke(); break;
+    case 'target':
+      for (const r of [36,22,8]) { B(); c.arc(0,0,r,0,7); c.stroke(); }
+      B(); c.moveTo(0,-46); c.lineTo(0,-28); c.moveTo(0,46); c.lineTo(0,28); c.moveTo(-46,0); c.lineTo(-28,0); c.moveTo(46,0); c.lineTo(28,0); c.stroke(); break;
+    case 'door': B(); c.rect(-26,-46,52,92); c.stroke(); B(); c.arc(14,2,4,0,7); c.fill(); break;
+    case 'arrow': B(); c.moveTo(-46,0); c.lineTo(42,0); c.moveTo(24,-16); c.lineTo(44,0); c.lineTo(24,16); c.stroke(); break;
+    case 'diamond': B(); c.moveTo(-26,-14); c.lineTo(-14,-28); c.lineTo(14,-28); c.lineTo(26,-14); c.lineTo(0,26); c.closePath(); c.moveTo(-26,-14); c.lineTo(26,-14); c.stroke(); break;
+  }
+  c.restore();
+}
+
+// ============================================================ shared layers
+function background(t, tint, beamA = 1, sway = 0){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.fillStyle = '#05070b'; ctx.fillRect(0,0,W,H);
+  let g = ctx.createRadialGradient(W*.5, H*.28, 50, W*.5, H*.45, W*.75);
+  g.addColorStop(0, 'rgba(32,42,62,1)'); g.addColorStop(.55, 'rgba(13,18,28,1)'); g.addColorStop(1, 'rgba(5,7,11,1)');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  if (beamA > 0) {
+    ctx.globalCompositeOperation = 'lighter';
+    const bx = W/2 + 90*Math.sin(t*.17) + sway;
+    g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, rgba(tint, .20*beamA)); g.addColorStop(.6, rgba(tint, .06*beamA)); g.addColorStop(1, rgba(tint, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(bx-170, -20); ctx.lineTo(bx+170, -20); ctx.lineTo(bx+720, H); ctx.lineTo(bx-720, H); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(bx-60, -20); ctx.lineTo(bx+60, -20); ctx.lineTo(bx+330, H); ctx.lineTo(bx-330, H); ctx.closePath(); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+}
+function worldBegin(cam, shakeX = 0, shakeY = 0){
+  CAM = cam;
+  ctx.setTransform(1,0,0,1,W/2 + shakeX, H/2 + shakeY);
+  if (cam.roll) ctx.rotate(cam.roll);
+  ctx.globalAlpha = 1; ctx.filter = 'none';
+}
+function drawDust(t, alpha = 1, count = 170){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < count; i++) {
+    const d = dust[i];
+    const zr = ((d.z - CAM.z) % 3000 + 3000) % 3000 + 60; const z = CAM.z + zr;
+    const xx = d.x + Math.sin(t*.3*d.sp + d.ph)*40; const yy = d.y - t*14*d.sp;
+    const x = CAM.x + ((((xx - CAM.x) % 4000) + 4000) % 4000) - 2000;
+    const y = CAM.y + ((((yy - CAM.y) % 2600) + 2600) % 2600) - 1300;
+    const p = proj(x, y, z); if (!p) continue;
+    const near = zr < 500;
+    const r = Math.max(1.2, d.r * p.s * (near ? 6 : 1.4));
+    const a = alpha * (near ? .10 : .55) * clamp(zr/200) * clamp((3000 - zr)/800) * (.55 + .45*Math.sin(t*1.3 + d.ph));
+    if (a <= .01) continue;
+    ctx.globalAlpha = a;
+    ctx.drawImage(bokeh, p.x - r, p.y - r, r*2, r*2);
+  }
+  ctx.restore();
+}
+function floorGrid(yF, alpha, tint = [217,179,108]){
+  ctx.save(); ctx.lineWidth = 1.2;
+  const step = 260; const x0 = Math.floor((CAM.x - 3200)/step)*step;
+  for (let x = x0; x <= CAM.x + 3200; x += step) {
+    const a = proj(x, yF, Math.max(CAM.z + 60, -400)), b = proj(x, yF, 3400); if (!a || !b) continue;
+    const g = ctx.createLinearGradient(a.x, a.y, b.x, b.y); g.addColorStop(0, rgba(tint, .16*alpha)); g.addColorStop(1, rgba(tint, 0));
+    ctx.strokeStyle = g; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  for (let z = -260; z <= 3400; z += step) {
+    const a = proj(CAM.x - 3200, yF, z), b = proj(CAM.x + 3200, yF, z); if (!a || !b) continue;
+    ctx.strokeStyle = rgba(tint, .13*alpha*clamp(1 - (z+260)/3700)); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+function glassPanel(c, x, y, w, h, o = {}){
+  const r = o.r || 26;
+  c.save();
+  if (o.shadow !== false) { c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 50; c.shadowOffsetY = 24; }
+  const g = c.createLinearGradient(x, y, x + w*.4, y + h);
+  g.addColorStop(0, 'rgba(38,48,68,.82)'); g.addColorStop(1, 'rgba(12,16,24,.88)');
+  c.fillStyle = g; c.beginPath(); c.roundRect(x, y, w, h, r); c.fill();
+  c.shadowBlur = 0; c.shadowOffsetY = 0;
+  const gl = o.glow || 0;
+  c.strokeStyle = `rgba(217,179,108,${.22 + .6*gl})`; c.lineWidth = 2 + gl;
+  if (gl > .05) { c.shadowColor = `rgba(243,215,154,${.5*gl})`; c.shadowBlur = 30*gl; }
+  c.stroke(); c.shadowBlur = 0;
+  const hl = c.createLinearGradient(x, y, x, y + h*.5); hl.addColorStop(0, 'rgba(255,255,255,.07)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = hl; c.beginPath(); c.roundRect(x+2, y+2, w-4, h*.5, r); c.fill();
+  c.restore();
+}
+function finish(t, o = {}){
+  ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha = 1; ctx.filter = 'none'; ctx.globalCompositeOperation = 'source-over';
+  const g = ctx.createRadialGradient(W/2, H/2, H*.35, W/2, H/2, H*1.05);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.72)');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+}
+function grainPass(t){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .07;
+  ctx.drawImage(grain[Math.floor(t*24) % 4], 0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+}
+
+// ============================================================ HUD + subtitles
+const SECTIONS = {B:['01','Реальный случай'], D:['02','Понятие разбоя'], E:['03','Основные понятия'], F:['04','Статья 192 УК РК'], G:['05','Ответственность']};
+function hud(t, key, a){
+  if (!SECTIONS[key] || a <= 0) return;
+  ctx.setTransform(1,0,0,1,0,0); ctx.save(); ctx.globalAlpha = a * .9;
+  ctx.fillStyle = GOLD; ctx.fillRect(70, 62, 3, 40);
+  txt(ctx, 'РАЗБОЙ · СТ. 192 УК РК', 88, 80, {size: 18, w: 700, ls: 4, color: GOLD2});
+  txt(ctx, 'Уголовный кодекс Республики Казахстан', 88, 102, {size: 16, w: 500, ls: 1, color: MUTED});
+  const [n, name] = SECTIONS[key];
+  txt(ctx, n, W - 70, 84, {size: 34, fam: 'PF', w: 700, align: 'right', color: GOLD2});
+  txt(ctx, name.toUpperCase(), W - 70, 106, {size: 15, w: 600, ls: 3, align: 'right', color: MUTED});
+  ctx.restore();
+}
+const subLay = new Map();
+function subtitles(t){
+  if (t >= TL.ktkStart - .05 && t < TL.ktkStart + TL.ktkDur + .05) return;
+  for (const [ws, we, s] of TL.subs) {
+    const a0 = W2T(ws), a1 = W2T(we);
+    if (t < a0 || t > a1) continue;
+    const a = Math.min(clamp((t - a0)/.14), clamp((a1 - t)/.14));
+    let L = subLay.get(s);
+    if (!L) {
+      font(ctx, 34, 'IN', 500, 0);
+      const words = s.split(' '); const lines = [''];
+      for (const w of words) { const tryL = lines[lines.length-1] ? lines[lines.length-1] + ' ' + w : w; if (ctx.measureText(tryL).width > 1380 && lines[lines.length-1]) lines.push(w); else lines[lines.length-1] = tryL; }
+      if (lines.length === 2 && ctx.measureText(lines[1]).width < 400) { /* rebalance */ const all = s.split(' '); const half = Math.ceil(all.length/2); lines[0] = all.slice(0, half).join(' '); lines[1] = all.slice(half).join(' '); }
+      L = {lines, w: Math.max(...lines.map(l => ctx.measureText(l).width))}; subLay.set(s, L);
+    }
+    ctx.setTransform(1,0,0,1,0,0); ctx.save(); ctx.globalAlpha = a;
+    const lh = 46, h = L.lines.length*lh + 22, y0 = 1046 - h;
+    ctx.fillStyle = 'rgba(4,6,10,.62)'; ctx.beginPath(); ctx.roundRect(W/2 - L.w/2 - 28, y0, L.w + 56, h, 14); ctx.fill();
+    ctx.fillStyle = 'rgba(217,179,108,.9)'; ctx.fillRect(W/2 - L.w/2 - 28, y0 + 14, 3, h - 28);
+    L.lines.forEach((l, i) => txt(ctx, l, W/2, y0 + 45 + i*lh, {size: 34, w: 500, align: 'center', color: '#f4f1ea'}));
+    ctx.restore();
+  }
+}
+
+// ============================================================ scene windows / transitions
+function sceneAlpha(key, t){
+  const [s, e] = TL.scenes[key];
+  const inA = key === 'A' ? 1 : key === 'C' ? clamp((t - s + .02)/.02) : key === 'H' ? ss((t - s - .3)/.6) : ss((t - s + .22)/.44);
+  const outA = key === 'H' ? 1 : key === 'B' ? clamp((e + .02 - t)/.02) : key === 'G' ? clamp((e + 1.6 - t)/.6) : 1 - ss((t - e + .22)/.44);
+  return Math.min(inA, outA);
+}
+function whip(t, key){ // camera z offset for dolly-through transitions
+  const [s, e] = TL.scenes[key]; let dz = 0;
+  if ('BDEFG'.includes(key)) dz -= 900 * (1 - eOut3(prog(t, s - .25, .85)));
+  if ('ADEF'.includes(key)) dz += 1000 * eIn3(prog(t, e - .55, .8));
+  return dz;
+}
+
+// ============================================================ SCENE A — intro
+function camA(t){
+  const shake = Math.exp(-Math.max(0, t - 2.78)*7) * (t > 2.78 ? 1 : 0);
+  return {x: 50*Math.sin(t*.25) - 30, y: lerp(-10, 150, eIO3(prog(t, 7.2, 1.8))), z: -1260 + 240*eOut3(t/7.5) + 60*eIO3(prog(t,7.2,6)) + whip(t,'A'),
+          roll: .008*Math.sin(t*.3) - .01*eIO3(prog(t,7.2,1.8)) + .006*shake*Math.sin(t*60), fz: 0, dof: .012, ly: 0,
+          sx: shake*14*Math.sin(t*71), sy: shake*10*Math.cos(t*53)};
+}
+function sceneA(t, a){
+  const c = camA(t); worldBegin(c, c.sx, c.sy); ctx.globalAlpha = a;
+  // far layer: huge outline numeral
+  obj(420, -120, 1600, .5*a*ss(prog(t, 1, 3)), k => { font(k, 900, 'PF', 900); k.textAlign = 'center'; k.strokeStyle = 'rgba(217,179,108,.12)'; k.lineWidth = 3; k.strokeText('192', 0, 300); });
+  drawDust(t, a*ss(t/1.2));
+  obj(0, -300, 120, a*ss(prog(t, .35, 1.2)), k => txt(k, 'УГОЛОВНЫЙ КОДЕКС РЕСПУБЛИКИ КАЗАХСТАН', 0, 0, {size: 24, w: 600, ls: 9, align: 'center', color: MUTED}));
+  // title impact
+  if (t > 2.0) {
+    const flash = Math.exp(-Math.max(0, t - 2.8)*5) * (t > 2.8 ? 1 : 0);
+    obj(0, -110, 40, a*flash*.9, k => { const g = k.createRadialGradient(0,0,0,0,0,700); g.addColorStop(0,'rgba(255,220,150,.45)'); g.addColorStop(1,'rgba(255,220,150,0)'); k.fillStyle = g; k.fillRect(-900,-500,1800,1000); }, {noDof: true});
+    flyText('РАЗБОЙ', 0, -60, 0, t, 2.25, {size: 250, fam: 'PF', w: 900, ls: 22, stg: .05, dur: .55, dz: -820, rot: .3, ease: eOutBack, color: 'white', alpha: a, glow: 0, mblur: 10});
+  }
+  const lp = eIO3(prog(t, 3.0, .9));
+  obj(0, 40, 0, a*clamp(lp*3), k => { const g = k.createLinearGradient(-520,0,520,0); g.addColorStop(0,'rgba(217,179,108,0)'); g.addColorStop(.5,GOLD2); g.addColorStop(1,'rgba(217,179,108,0)'); k.fillStyle = g; k.fillRect(-520*lp, -1.5, 1040*lp, 3); });
+  flyText('СТАТЬЯ 192 УК РК', 0, 125, 0, t, 3.35, {size: 50, fam: 'IN', w: 700, ls: 14, stg: .025, dur: .6, dz: 300, dy: 40, rot: 0, ease: eOut3, color: GOLD2, alpha: a, mblur: 4});
+  // author block
+  const au = ss(prog(t, 4.4, .8)) * (1 - ss(prog(t, 7.0, .6)));
+  obj(0, 300, -60, a*au, k => {
+    k.translate(0, 30*(1 - eOut3(prog(t, 4.4, .9))));
+    txt(k, TL.author, 0, 0, {size: 40, w: 600, align: 'center', color: WHITE});
+    txt(k, TL.group.toUpperCase(), 0, 46, {size: 22, w: 600, ls: 6, align: 'center', color: GOLD});
+  });
+  // roadmap chips
+  const chips = [['01','Реальный случай',8.2], ['02','Понятия уголовного права',9.9], ['03','Ответственность',12.1]];
+  chips.forEach(([n, s, t0], i) => {
+    const p = prog(t, t0, .7); if (p <= 0) return;
+    const e = eOutBack(p, 1.3);
+    obj(-540 + i*540, 360 + 80*(1-e), -60 + i*10 - 300*(1-e), a*clamp(p*2.5), k => {
+      glassPanel(k, -240, -60, 480, 120, {r: 20, glow: .6*Math.exp(-(t - t0)*1.5)});
+      txt(k, n, -205, 18, {size: 54, fam: 'PF', w: 700, color: GOLD2});
+      txt(k, s, -128, 12, {size: s.length > 18 ? 24 : 30, w: 600, color: WHITE});
+    }, {blur: (1 - eOut3(p))*6});
+  });
+}
+
+// ============================================================ SCENE B — case
+const B_STOPS = [[0, 0], [6.0, 1250], [8.95, 2500], [13.6, 3700]];
+function camB(t){
+  const l = t - TL.scenes.B[0];
+  let x = 0, v = 0;
+  for (let i = 1; i < B_STOPS.length; i++) { const [lt, X] = B_STOPS[i]; const p = eIO3(prog(l, lt, 1.05)); x += (X - B_STOPS[i-1][1]) * p; v += (X - B_STOPS[i-1][1]) * (p > 0 && p < 1 ? 1 : 0); }
+  // banking from velocity
+  const dl = .02; const xa = bx(l - dl), xb = bx(l + dl); const vel = (xb - xa)/(2*dl);
+  const fly = eIn3(prog(t, 31.25, 1.17));
+  return {x: x + 30*l - 300, y: -20 + 25*Math.sin(l*.4), z: -1000 + 40*Math.sin(l*.33) + whip(t,'B') + 900*fly, roll: -vel*.000012 + .005*Math.sin(l*.5), fz: 0, dof: .011, ly: 0};
+  function bx(L){ let X = 0; for (let i = 1; i < B_STOPS.length; i++) X += (B_STOPS[i][1] - B_STOPS[i-1][1]) * eIO3(prog(L, B_STOPS[i][0], 1.05)); return X; }
+}
+function sceneB(t, a){
+  const l = t - TL.scenes.B[0];
+  a *= 1 - .85*ss(prog(t, 31.35, 1.0));
+  const c = camB(t); worldBegin(c); ctx.globalAlpha = a;
+  // police glow (slow breathing, no strobe)
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation = 'lighter';
+  const r1 = .5 + .5*Math.sin(l*2.2), r2 = .5 + .5*Math.sin(l*2.2 + Math.PI);
+  let g = ctx.createRadialGradient(0, H*.15, 0, 0, H*.15, 900); g.addColorStop(0, `rgba(210,40,40,${.13*r1*a})`); g.addColorStop(1, 'rgba(210,40,40,0)'); ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  g = ctx.createRadialGradient(W, H*.15, 0, W, H*.15, 900); g.addColorStop(0, `rgba(40,80,220,${.13*r2*a})`); g.addColorStop(1, 'rgba(40,80,220,0)'); ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  worldBegin(c); ctx.globalAlpha = a;
+  // far layer word
+  obj(1800, -200, 2600, a*.6, k => { font(k, 1100, 'PF', 900, 40); k.textAlign = 'center'; k.strokeStyle = 'rgba(217,179,108,.10)'; k.lineWidth = 4; k.strokeText('ДЕЛО', 0, 350); });
+  floorGrid(420, a*.8);
+  drawDust(l + 20, a);
+  // group 0: date & place
+  obj(-800, -250, 0, a*ss(prog(l, .35, .6)), k => {
+    k.fillStyle = RED; k.beginPath(); k.arc(8, -8, 8, 0, 7); k.globalAlpha *= .6 + .4*Math.sin(l*5); k.fill(); k.globalAlpha = 1*a;
+    txt(k, 'ТЕЛЕКАНАЛ КТК СООБЩАЕТ', 30, 0, {size: 24, w: 700, ls: 6, color: '#e8e2d4'});
+  });
+  flyText('ЯНВАРЬ 2026', -800, -70, 0, l, .5, {size: 150, fam: 'PF', w: 900, ls: 4, align: 'left', stg: .04, dur: .6, dz: -500, dy: 0, rot: .2, color: 'white', alpha: a});
+  const ap = prog(l, 1.3, .7);
+  obj(-760, 70, 0, a*clamp(ap*2), k => { icon(k, 'pin', 80, {lw: 5, p: eOut3(ap), glow: 16}); }, {});
+  flyText('АЛМАТЫ', -695, 105, 0, l, 1.45, {size: 84, fam: 'IN', w: 800, ls: 18, align: 'left', stg: .04, dur: .55, dz: 250, dy: 30, rot: 0, ease: eOut3, color: GOLD2, alpha: a, mblur: 4});
+  obj(-800, 190, 0, a*ss(prog(l, 2.6, .6)), k => txt(k, 'разбойное нападение на квартиру', 0, 0, {size: 36, w: 500, color: MUTED}));
+  // group 1: six people
+  const G1 = 1250;
+  obj(G1, -120, 700, a*ss(prog(l, 6.3, .8)), k => { font(k, 720, 'PF', 900); k.textAlign = 'center'; k.strokeStyle = 'rgba(217,179,108,.35)'; k.lineWidth = 4; k.strokeText('6', 0, 250); });
+  for (let i = 0; i < 6; i++) {
+    const p = prog(l, 6.55 + i*.11, .6); if (p <= 0) continue;
+    const e = eOutBack(p, 1.8);
+    obj(G1 - 375 + i*150, 40 + 120*(1-e), (i % 2) * 60, a*clamp(p*3), k => {
+      const g = k.createLinearGradient(0, -60, 0, 60); g.addColorStop(0, '#3a4258'); g.addColorStop(1, '#141924');
+      icon(k, 'person', 150, {fill: g, color: g});
+      k.strokeStyle = 'rgba(243,215,154,.5)'; k.lineWidth = 2; k.beginPath(); k.arc(0, -45, 25, Math.PI*1.1, Math.PI*1.9); k.stroke();
+    });
+  }
+  obj(G1, -280, 0, a*ss(prog(l, 6.6, .5)), k => txt(k, 'ГРУППА ИЗ 6 ЧЕЛОВЕК', 0, 0, {size: 46, w: 800, ls: 10, align: 'center', color: WHITE}));
+  obj(G1, 210, 0, a*ss(prog(l, 7.7, .5)), k => { icon(k, 'door', 56, {lw: 4}); txt(k, 'ворвались в квартиру', 50, 14, {size: 38, w: 500, color: GOLD2}); }, {});
+  // group 2: weapon & money
+  const G2 = 2500;
+  const rp = prog(l, 9.25, .75);
+  obj(G2 - 160 + 900*(1 - eOut5(rp)), -60, 0, a*clamp(rp*3), k => {
+    const g = k.createLinearGradient(-300, 0, 300, 0); g.addColorStop(0, '#2a3040'); g.addColorStop(1, '#4a5368');
+    icon(k, 'rifle', 640, {fill: g, filled: true, color: g});
+    icon(k, 'rifle', 640, {lw: 3, color: 'rgba(243,215,154,.8)', glow: 14});
+  }, {blur: (1 - eOut3(rp))*18});
+  obj(G2 - 160, 90, 0, a*ss(prog(l, 9.7, .5)), k => txt(k, 'угроза охотничьим ружьём', 0, 0, {size: 42, w: 600, align: 'center', color: WHITE}));
+  const mp = prog(l, 11.4, .6);
+  obj(G2 + 420, -210, -80, a*clamp(mp*2.5), k => { k.translate(0, 40*(1 - eOutBack(mp))); icon(k, 'money', 150, {lw: 4, glow: 12}); icon(k, 'diamond', 70, {lw: 3}); }, {});
+  obj(G2 + 420, -90, -80, a*ss(prog(l, 11.6, .5)), k => txt(k, 'деньги и ценности', 0, 0, {size: 34, w: 500, align: 'center', color: GOLD2}));
+  // group 3: detained
+  const G3 = 3700;
+  obj(G3 - 330, -40, 60, a*ss(prog(l, 13.9, .6)), k => { icon(k, 'cuffs', 230, {lw: 7, p: eOut3(prog(l, 13.9, 1.2)), glow: 14}); });
+  obj(G3 + 180, -230, 0, a*ss(prog(l, 14.0, .5)), k => txt(k, 'по подозрению в совершении преступления', 0, 0, {size: 30, w: 500, align: 'center', color: MUTED}));
+  const sp = prog(l, 16.25, .32);
+  if (sp > 0) {
+    const e = eOut3(sp);
+    obj(G3 + 180, -40, -400*(1 - e), a*clamp(sp*4), k => {
+      k.rotate(-.07 - .1*(1 - e)); k.scale(1 + 1.2*(1 - e), 1 + 1.2*(1 - e));
+      k.strokeStyle = RED; k.lineWidth = 9; k.beginPath(); k.roundRect(-330, -110, 660, 220, 14); k.stroke();
+      k.lineWidth = 3; k.beginPath(); k.roundRect(-312, -92, 624, 184, 8); k.stroke();
+      txt(k, 'ЗАДЕРЖАНЫ', 0, 2, {size: 92, fam: 'IN', w: 800, ls: 8, align: 'center', color: RED});
+      txt(k, '6 ЧЕЛОВЕК', 0, 66, {size: 36, w: 700, ls: 12, align: 'center', color: '#f0a49c'});
+    }, {blur: (1 - e)*10});
+  }
+}
+
+// ============================================================ monitor (B end / C)
+function drawMonitor(img, cx, cy, sc, alpha, roll = 0){
+  ctx.save(); ctx.setTransform(1,0,0,1,cx,cy); ctx.rotate(roll); ctx.scale(sc, sc); ctx.globalAlpha = alpha;
+  const w = 1500, h = 836;
+  ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 80; ctx.shadowOffsetY = 30;
+  ctx.fillStyle = '#0b0e14'; ctx.beginPath(); ctx.roundRect(-w/2 - 18, -h/2 - 18, w + 36, h + 36, 22); ctx.fill();
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = 'rgba(217,179,108,.55)'; ctx.lineWidth = 2; ctx.stroke();
+  if (img) ctx.drawImage(img, -w/2, -h/2, w, h);
+  const g = ctx.createLinearGradient(-w/2, -h/2, w/2, h/2); g.addColorStop(0, 'rgba(255,255,255,.07)'); g.addColorStop(.35, 'rgba(255,255,255,0)'); g.addColorStop(.7, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,.03)');
+  ctx.fillStyle = g; ctx.fillRect(-w/2, -h/2, w, h);
+  ctx.restore();
+}
+async function monitorFlyIn(t){
+  const p = prog(t, 31.25, 1.17); if (p <= 0) return;
+  const img = await ktkFrame(TL.ktkStart);
+  const e = eIO3(p);
+  drawMonitor(img, lerp(1180, 960, e), lerp(470, 505, e), lerp(.06, 1, e), clamp(p*4), lerp(-.06, 0, e));
+}
+async function sceneC(t, a){
+  const l = t - TL.ktkStart;
+  const img = await ktkFrame(t);
+  // blurred backdrop from the live frame
+  sctx.filter = 'blur(3px)'; sctx.drawImage(img, -10, -6, 212, 120); sctx.filter = 'none';
+  ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha = a*ss(l/.5); ctx.drawImage(smallC, -40, -24, W + 80, H + 48); ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(5,7,11,.66)'; ctx.fillRect(0,0,W,H);
+  CAM = {x:0,y:0,z:-1000,roll:0,fz:0,dof:0}; ctx.setTransform(1,0,0,1,W/2,H/2);
+  drawDust(t, .5*a, 90);
+  const out = eIn3(prog(t, TL.scenes.C[1] - .5, .55));
+  const sc = (1 + .03*ss(l/50)) * (1 + 1.6*out);
+  drawMonitor(img, 960, 505, sc, a*(1 - out*.6), .003*Math.sin(l*.15));
+  ctx.setTransform(1,0,0,1,0,0);
+  const la = a * ss(prog(l, .4, .6)) * (1 - out);
+  ctx.globalAlpha = la;
+  txt(ctx, 'АЛМАТЫ  ·  ЯНВАРЬ 2026', W/2, 52, {size: 22, w: 700, ls: 8, align: 'center', color: GOLD2});
+  ctx.fillStyle = 'rgba(4,6,10,.75)'; ctx.beginPath(); ctx.roundRect(212, 960, 330, 52, 10); ctx.fill();
+  ctx.fillStyle = RED; ctx.beginPath(); ctx.arc(238, 986, 7, 0, 7); ctx.fill();
+  txt(ctx, 'Источник: телеканал КТК', 256, 994, {size: 22, w: 600, color: WHITE});
+  ctx.globalAlpha = 1;
+  if (out > 0) { ctx.fillStyle = `rgba(255,236,200,${.5*Math.sin(out*Math.PI)})`; ctx.fillRect(0,0,W,H); }
+}
+
+// ============================================================ SCENE D — definition
+const DEF = 'это нападение с целью хищения чужого имущества, сопровождающееся насилием, опасным для жизни или здоровья человека, либо угрозой применения такого насилия.';
+function camD(t){
+  const w = t - 50.93; const ex = eIO3(prog(w, 42.85, 1.3));
+  return {x: lerp(-40, 40, ss(prog(w, 32.4, 11))) , y: lerp(-10, 60, ex), z: lerp(-1000, -960, ss(prog(w, 32.4, 10))) + whip(t,'D'),
+          roll: .006*Math.sin(w*.4) - .012*Math.sin(ex*Math.PI), fz: lerp(0, -150, ex), dof: .014, ly: 0};
+}
+function sceneD(t, a){
+  const w = t - 50.93; const c = camD(t); worldBegin(c); ctx.globalAlpha = a;
+  const ex = eIO3(prog(w, 42.85, 1.3));
+  obj(-200, 0, 2200, a*.7, k => { font(k, 1000, 'PF', 900); k.textAlign = 'center'; k.strokeStyle = 'rgba(217,179,108,.09)'; k.lineWidth = 4; k.strokeText('§', 0, 340); });
+  drawDust(t, a);
+  const gz = 500*ex, gy = -120*ex;
+  flyText('Разбой —', -720, -250 + gy, gz, w, 32.62, {size: 140, fam: 'PF', w: 900, align: 'left', stg: .04, dur: .6, dz: -500, rot: .2, color: 'gold', alpha: a*(1 - .55*ex)});
+  const lay = layout(DEF, 56, 'IN', 500, 1440, 80);
+  const times = wordTimes(lay, 33.6, 42.55);
+  const hi = new Set(); lay.words.forEach((wd, i) => { if (/нападение|хищения|чужого|имущества|насилием|опасным|жизни|здоровья|угрозой/.test(wd.s)) hi.add(i); });
+  obj(-720, -110 + gy, gz, a*(1 - .55*ex), k => drawPara(k, lay, times, w, {size: 56, w: 500, hi}));
+  // example
+  if (w > 42.9) {
+    const p1 = prog(w, 43.25, .7), p2 = prog(w, 44.3, .7), p3 = prog(w, 45.1, .7);
+    obj(-480, 130, -150, a*clamp(p1*2.5), k => {
+      k.translate(-120*(1 - eOut3(p1)), 0);
+      icon(k, 'rifle', 380, {lw: 3, color: GOLD2, glow: 14});
+      txt(k, 'угроза оружием', 0, 110, {size: 34, w: 600, align: 'center', color: WHITE});
+    }, {blur: (1 - eOut3(p1))*8});
+    obj(0, 120, -150, a*clamp(p2*3), k => icon(k, 'arrow', 140, {lw: 4, p: eOut3(p2)}));
+    obj(470, 120, -150, a*clamp(p3*2.5), k => {
+      k.translate(0, 50*(1 - eOutBack(p3)));
+      icon(k, 'phone', 120, {lw: 4, glow: 10}); k.translate(95, 10); icon(k, 'money', 130, {lw: 4, glow: 10, bg: '#0d121b'});
+      txt(k, 'чужие деньги или телефон', -45, 110, {size: 34, w: 600, align: 'center', color: WHITE});
+    });
+    obj(0, -40, -150, a*ss(prog(w, 43.2, .5)), k => txt(k, 'НАПРИМЕР', 0, 0, {size: 26, w: 700, ls: 12, align: 'center', color: GOLD}));
+  }
+}
+
+// ============================================================ SCENE E — concepts (3D cards)
+const cardCv = [0,1,2,3].map(i => { const c = document.createElement('canvas'); c.width = i === 3 ? 1400 : 1150; c.height = i === 3 ? 700 : 620; return c; });
+const CARDS = [
+  {X: 1500, Z: 0, t: 50.55}, {X: 3000, Z: 140, t: 57.85}, {X: 4500, Z: 0, t: 62.5}, {X: 6150, Z: 160, t: 68.4}
+];
+function camEtarget(w){
+  let x = 0, z = -1000, y = -20; let roll = 0;
+  const pts = [{x: 0, z: -1000}, ...CARDS.map((c, i) => ({x: c.X, z: c.Z - (i === 3 ? 1200 : 1080)}))];
+  let px = pts[0].x, pz = pts[0].z;
+  CARDS.forEach((cd, i) => {
+    const p = eIO3(prog(w, cd.t, 1.0));
+    px += (pts[i+1].x - pts[i].x) * p; pz += (pts[i+1].z - pts[i].z) * p;
+    const arc = Math.sin(Math.PI * clamp(prog(w, cd.t, 1.0)));
+    pz -= 320*arc; roll += (i % 2 ? -1 : 1) * .03 * arc; y -= 60*arc;
+  });
+  return {x: px, z: pz, y, roll};
+}
+function camE(t){
+  const w = t - 50.93; const b = camEtarget(w);
+  return {x: b.x + 60*Math.sin(w*.35), y: b.y + 20*Math.sin(w*.27), z: b.z + whip(t,'E'), roll: b.roll + .005*Math.sin(w*.5), fz: CARDS[activeCard(w)]?.Z ?? 0, dof: .01, ly: 0};
+}
+function activeCard(w){ let k = -1; CARDS.forEach((c, i) => { if (w >= c.t + .3) k = i; }); return Math.max(0, k); }
+function statuteMock(k, x, y, w, which, p){
+  // two blocks: disposition / sanction
+  const parts = [['ДИСПОЗИЦИЯ', '«Разбой, то есть нападение с целью хищения…»'], ['САНКЦИЯ', '«…наказывается лишением свободы…»']];
+  parts.forEach(([lab, s], i) => {
+    const on = i === which; const yy = y + i*78;
+    k.save(); k.globalAlpha *= on ? 1 : .35;
+    k.fillStyle = on ? `rgba(217,179,108,${.14*p})` : 'rgba(255,255,255,.04)'; k.beginPath(); k.roundRect(x, yy, w, 64, 10); k.fill();
+    if (on) { k.strokeStyle = `rgba(243,215,154,${.8*p})`; k.lineWidth = 2; k.stroke(); }
+    txt(k, lab, x + 22, yy + 40, {size: 20, w: 800, ls: 4, color: on ? GOLD2 : MUTED});
+    txt(k, s, x + 210, yy + 41, {size: 24, w: 500, color: on ? WHITE : MUTED});
+    k.restore();
+  });
+}
+function drawCard(i, w){
+  const cv = cardCv[i], k = cv.getContext('2d'); const CW = cv.width, CH = cv.height;
+  k.setTransform(1,0,0,1,0,0); k.clearRect(0,0,CW,CH); k.globalAlpha = 1;
+  const t0 = CARDS[i].t + .6;
+  const glow = clamp(Math.exp(-(w - t0)*1.2)) * (w > t0 ? 1 : 0) * .9 + (activeCard(w) === i ? .25 : 0);
+  glassPanel(k, 30, 30, CW - 60, CH - 60, {r: 30, glow, shadow: false});
+  txt(k, '0' + (i+1), CW - 80, 105, {size: 44, fam: 'PF', w: 700, align: 'right', color: 'rgba(217,179,108,.6)'});
+  if (i < 3) {
+    const D = [
+      {ic: 'target', title: 'Вина', def: 'отношение человека к своему поступку', ws: 52.7, we: 55.0},
+      {ic: 'doc', title: 'Диспозиция', def: 'часть статьи, в которой описывается запрещённое действие', ws: 59.6, we: 62.3},
+      {ic: 'gavel', title: 'Санкция', def: 'часть статьи, в которой указывается наказание за это действие', ws: 64.1, we: 67.2}][i];
+    const ip = prog(w, CARDS[i].t + .45, 1.0);
+    k.save(); k.translate(140, 150); icon(k, D.ic, 120, {lw: 5, p: eOut3(ip), glow: 14}); k.restore();
+    k.save(); k.globalAlpha = clamp(prog(w, CARDS[i].t + .55, .4)*1.5); txt(k, D.title, 240, 190, {size: 104, fam: 'PF', w: 900, color: whiteGrad(k, 104)}); k.restore();
+    const lay = layout(D.def, 44, 'IN', 500, CW - 180, 60);
+    k.save(); k.translate(90, 300); drawPara(k, lay, wordTimes(lay, D.ws, D.we), w, {size: 44, w: 500, color: '#e9e4d8', hi: new Set(lay.words.map((x, j) => [/поступку/, /запрещённое|действие/, /наказание/][i].test(x.s) ? j : -1).filter(j => j >= 0)), under: true}); k.restore();
+    if (i === 0) {
+      [['умышленная', 56.0], ['неосторожная', 56.9]].forEach(([s, tt], j) => {
+        const p = prog(w, tt, .5); if (p <= 0) return;
+        k.save(); k.globalAlpha = clamp(p*2); k.translate(90 + j*330, 470 + 30*(1 - eOutBack(p)));
+        k.fillStyle = 'rgba(217,179,108,.14)'; k.strokeStyle = GOLD; k.lineWidth = 2; k.beginPath(); k.roundRect(0, 0, 300, 70, 35); k.fill(); k.stroke();
+        txt(k, s, 150, 46, {size: 32, w: 600, align: 'center', color: GOLD2}); k.restore();
+      });
+    } else {
+      const p = eOut3(prog(w, CARDS[i].t + 1.8, .7));
+      k.save(); k.globalAlpha = p; k.translate(0, 20*(1 - p)); statuteMock(k, 90, 420, CW - 180, i - 1, p); k.restore();
+    }
+  } else {
+    const bp = prog(w, 68.9, .6);
+    k.save(); k.translate(140, 140); icon(k, 'scales', 110, {lw: 5, p: eOut3(prog(w, 68.9, 1)), glow: 14}); k.restore();
+    k.save(); k.globalAlpha = clamp(bp*2); txt(k, 'Преступление и проступок', 230, 170, {size: 72, fam: 'PF', w: 900, color: whiteGrad(k, 72)}); k.restore();
+    // danger meter
+    const mp = eIO3(prog(w, 70.6, 1.6));
+    k.save(); k.globalAlpha = clamp(prog(w, 70.3, .4)*2);
+    txt(k, 'СТЕПЕНЬ ОБЩЕСТВЕННОЙ ОПАСНОСТИ', 90, 262, {size: 20, w: 700, ls: 5, color: MUTED});
+    const g = k.createLinearGradient(90, 0, CW - 90, 0); g.addColorStop(0, '#5d7da8'); g.addColorStop(1, RED);
+    k.fillStyle = 'rgba(255,255,255,.06)'; k.beginPath(); k.roundRect(90, 285, CW - 180, 16, 8); k.fill();
+    k.fillStyle = g; k.beginPath(); k.roundRect(90, 285, (CW - 180)*mp, 16, 8); k.fill();
+    txt(k, 'меньше', 90, 330, {size: 20, w: 500, color: '#8fa8cc'}); txt(k, 'больше', CW - 90, 330, {size: 20, w: 500, align: 'right', color: '#e68a80'});
+    k.restore();
+    const cols = [
+      {x: 90, title: 'ПРЕСТУПЛЕНИЕ', c: RED, lines: ['более опасное', 'может повлечь лишение свободы'], t: 73.55},
+      {x: CW/2 + 20, title: 'УГОЛОВНЫЙ ПРОСТУПОК', c: '#7f9cc4', lines: ['менее опасный', 'более мягкие наказания'], t: 77.1}];
+    cols.forEach(cl => {
+      const p = prog(w, cl.t, .6); if (p <= 0) return;
+      k.save(); k.globalAlpha = clamp(p*2); k.translate(cl.x, 370 + 40*(1 - eOutBack(p)));
+      const cw = CW/2 - 110;
+      k.fillStyle = 'rgba(255,255,255,.04)'; k.beginPath(); k.roundRect(0, 0, cw, 250, 18); k.fill();
+      k.fillStyle = cl.c; k.fillRect(0, 22, 5, 206);
+      txt(k, cl.title, 30, 62, {size: 30, w: 800, ls: 3, color: cl.c});
+      cl.lines.forEach((s, j) => { const q = prog(w, cl.t + .5 + j*1.0, .4); k.globalAlpha = clamp(p*2)*clamp(q*2); txt(k, '— ' + s, 30, 130 + j*58, {size: 34, w: 500, color: WHITE}); });
+      k.restore();
+    });
+  }
+  return glow;
+}
+function drawCardQuad(i, alpha, yaw){
+  const cv = cardCv[i]; const cw = cv.width, ch = cv.height; const {X, Z} = CARDS[i];
+  const Y = -20; const N = 14; const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const pt = (u, v) => { const lx = (u - .5)*cw, ly = (v - .5)*ch; return proj(X + lx*cy, Y + ly, Z + lx*sy); };
+  ctx.save(); ctx.globalAlpha *= alpha;
+  for (let s = 0; s < N; s++) {
+    const u0 = s/N, u1 = (s + 1)/N;
+    const a = pt(u0, 0), b = pt(u1, 0), c = pt(u0, 1), d = pt(u1, 1); if (!a || !b || !c || !d) continue;
+    const sw = cw/N, ov = .6;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(a.x - ov, a.y); ctx.lineTo(b.x + ov, b.y); ctx.lineTo(d.x + ov, d.y); ctx.lineTo(c.x - ov, c.y); ctx.closePath(); ctx.clip();
+    // affine: source (u0*cw,0)->a, (u1*cw,0)->b, (u0*cw,ch)->c
+    const m11 = (b.x - a.x)/sw, m12 = (b.y - a.y)/sw, m21 = (c.x - a.x)/ch, m22 = (c.y - a.y)/ch;
+    ctx.transform(m11, m12, m21, m22, a.x, a.y);
+    ctx.drawImage(cv, u0*cw, 0, sw + 1, ch, 0, 0, sw + 1, ch);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function sceneE(t, a){
+  const w = t - 50.93; const c = camE(t); worldBegin(c); ctx.globalAlpha = a;
+  obj(c.x*.0 + 3000, -250, 3200, a*.7, k => { font(k, 1300, 'PF', 900, 60); k.textAlign = 'center'; k.strokeStyle = 'rgba(217,179,108,.08)'; k.lineWidth = 4; k.strokeText('УК РК', 0, 420); });
+  floorGrid(440, a);
+  drawDust(t, a);
+  // title
+  const tOut = 1 - ss(prog(w, 50.6, .8));
+  flyText('Основные понятия', 0, -80, 0, w, 47.95, {size: 120, fam: 'PF', w: 900, stg: .03, dur: .6, dz: -500, rot: .2, color: 'white', alpha: a*tOut});
+  flyText('УГОЛОВНОГО ПРАВА', 0, 40, 0, w, 48.6, {size: 46, fam: 'IN', w: 700, ls: 16, stg: .02, dur: .5, dz: 300, dy: 30, rot: 0, ease: eOut3, color: GOLD2, alpha: a*tOut, mblur: 4});
+  // cards (only those near camera)
+  const order = [0,1,2,3].filter(i => Math.abs(CARDS[i].X - c.x) < 2600 && w > CARDS[i].t - 1.2).sort((p, q) => Math.abs(CARDS[q].X - c.x) - Math.abs(CARDS[p].X - c.x));
+  for (const i of order) {
+    drawCard(i, w);
+    const yaw = clamp((c.x - CARDS[i].X)/1500, -1, 1) * .55 + .04*Math.sin(w*.4 + i);
+    const app = eOut3(prog(w, CARDS[i].t - .2, .9));
+    const act = activeCard(w) === i ? 1 : .45;
+    drawCardQuad(i, a*app*act, yaw);
+  }
+}
+
+// ============================================================ SCENE F — article photo
+const PARTS = [[80, 268], [290, 683], [706, 1036], [1059, 1271]];
+function camF(t){
+  const w = t - 50.93;
+  const s0 = .78, s1 = 1.0, s2 = 1.62;
+  const k1 = eIO3(prog(w, 83.9, 1.2)), k2 = eIO3(prog(w, 89.55, 1.2));
+  const scan = ss(prog(w, 84.6, 4.9));
+  let s = lerp(lerp(s0, s1, k1), s2, k2);
+  let x = lerp(lerp(-300, 0, k1), 0, k2);
+  let y = lerp(lerp(-20, lerp(-330, 330, scan), k1), -640 + 174 + 40, k2);
+  return {x: x + 15*Math.sin(w*.5), y: y + 8*Math.sin(w*.7), z: -FOC/s + whip(t,'F'), roll: -.01 + .008*Math.sin(w*.4) + .02*Math.sin(Math.PI*k2), fz: 0, dof: .01, ly: 0};
+}
+async function sceneF(t, a){
+  const w = t - 50.93; const c = camF(t); worldBegin(c); ctx.globalAlpha = a;
+  const img = await loadImg('assets/article.jpg');
+  drawDust(t, a*.6, 110);
+  const ip = prog(w, 81.9, .9);
+  const rot = -.03 + .05*(1 - eOut3(ip));
+  // left label
+  const la = ss(prog(w, 82.6, .6)) * (1 - ss(prog(w, 84.0, .9)));
+  obj(-860, -120, -50, a*la, k => {
+    txt(k, 'Ст. 192', 0, 0, {size: 130, fam: 'PF', w: 900, align: 'center', color: goldGrad(k, 130)});
+    txt(k, 'РАЗБОЙ', 0, 80, {size: 40, w: 800, ls: 14, align: 'center', color: WHITE});
+    txt(k, 'УК РК', 0, 130, {size: 26, w: 600, ls: 8, align: 'center', color: MUTED});
+  });
+  obj(0, 300*(1 - eOut3(ip)), 0, a*clamp(ip*2.5), k => {
+    k.rotate(rot);
+    k.shadowColor = 'rgba(0,0,0,.75)'; k.shadowBlur = 70; k.shadowOffsetY = 30;
+    k.fillStyle = '#fff'; k.fillRect(-424, -640, 848, 1280); k.shadowBlur = 0; k.shadowOffsetY = 0;
+    k.drawImage(img, -424, -640, 848, 1280);
+    // remove the red "исключен" lines
+    k.fillStyle = '#ffffff'; k.fillRect(-424 + 66, -640 + 372, 848 - 66, 122);
+    k.fillStyle = 'rgba(160,160,160,.7)'; font(k, 22, 'IN', 500); k.textAlign = 'left'; k.fillText('…', -424 + 120, -640 + 440);
+    // warm paper grade
+    k.fillStyle = 'rgba(255,236,200,.10)'; k.fillRect(-424, -640, 848, 1280);
+    // scan line
+    const sp = prog(w, 84.6, 4.9);
+    if (sp > 0 && sp < 1) {
+      const yy = -640 + 1280*ss(sp);
+      const g = k.createLinearGradient(0, yy - 90, 0, yy + 6); g.addColorStop(0, 'rgba(217,179,108,0)'); g.addColorStop(1, 'rgba(217,179,108,.35)');
+      k.fillStyle = g; k.fillRect(-424, yy - 90, 848, 96); k.fillStyle = GOLD2; k.fillRect(-424, yy, 848, 3);
+    }
+    // part markers during scan
+    PARTS.forEach(([y0, y1], i) => {
+      const yy = -640 + y0; const pass = (yy + 640)/1280;
+      const p = prog(ss(sp), pass - .02, .04) * (1 - ss(prog(w, 89.6, .6)));
+      if (p <= 0) return;
+      k.save(); k.globalAlpha *= p;
+      k.fillStyle = 'rgba(217,179,108,.12)'; k.fillRect(-424 + 60, yy - 8, 788, y1 - y0 + 16);
+      k.fillStyle = GOLD; k.fillRect(-424 + 58, yy - 8, 5, y1 - y0 + 16);
+      k.fillStyle = '#1a1206'; k.beginPath(); k.roundRect(-424 - 110, yy - 6, 92, 44, 8); k.fill();
+      txt(k, 'ч. ' + (i + 1), -424 - 64, yy + 25, {size: 26, w: 800, align: 'center', color: GOLD2});
+      k.restore();
+    });
+    // focus on part 1
+    const fp = ss(prog(w, 90.2, .8));
+    if (fp > 0) {
+      const [y0, y1] = PARTS[0];
+      k.save(); k.globalAlpha *= fp;
+      k.fillStyle = 'rgba(6,8,12,.72)';
+      k.beginPath(); k.rect(-424, -640, 848, 1280); k.rect(-424 + 50, -640 + y0 - 14, 790, y1 - y0 + 28); k.fill('evenodd');
+      k.restore();
+      const hp = eIO3(prog(w, 92.6, .9));
+      if (hp > 0) {
+        k.save(); k.strokeStyle = GOLD2; k.lineWidth = 3; k.shadowColor = 'rgba(243,215,154,.8)'; k.shadowBlur = 16;
+        const bx = -424 + 70, by = -640 + 208, bw = 760*hp, bh = 66;
+        k.beginPath(); k.roundRect(bx, by, Math.max(1, bw), bh, 8); k.stroke();
+        k.fillStyle = 'rgba(243,215,154,.16)'; k.fill(); k.restore();
+      }
+    }
+  });
+  const bp = prog(w, 93.3, .6);
+  if (bp > 0) obj(200, -640 + 345, -120, a*clamp(bp*2.5)*(1 - ss(prog(w, 95.9, .3))), k => {
+    k.scale(.5 + .1*eOutBack(bp), .5 + .1*eOutBack(bp));
+    k.fillStyle = 'rgba(12,15,22,.92)'; k.strokeStyle = GOLD; k.lineWidth = 2; k.beginPath(); k.roundRect(-190, -70, 380, 140, 18); k.fill(); k.stroke();
+    txt(k, '3–7 лет', 0, 18, {size: 72, fam: 'PF', w: 900, align: 'center', color: goldGrad(k, 72)});
+    txt(k, 'ЧАСТЬ 1 · ОБЫЧНЫЙ РАЗБОЙ', 0, 52, {size: 16, w: 700, ls: 4, align: 'center', color: MUTED});
+  });
+}
+
+// ============================================================ SCENE G — staircase
+const FLOOR = 340, SD = 380;
+const STEPS = [
+  {x0: -930, h: 180, rise: 96.15, num: '3–7', nt: 96.35, cap: [['обычный разбой', 96.4]]},
+  {x0: -460, h: 330, rise: 96.6, num: '5–10', nt: 104.0, cap: [['группа по сговору', 97.4], ['с оружием', 100.1], ['тяжкий вред', 101.7], ['здоровью', 101.9]]},
+  {x0: 10, h: 480, rise: 106.75, num: '7–12', nt: 115.3, cap: [['смерть', 107.6], ['потерпевшего', 107.8], ['крупный размер', 110.2], ['неоднократно', 112.1], ['проникновение', 113.3], ['в помещение', 113.5]]},
+  {x0: 480, h: 630, rise: 118.3, num: '10–15', nt: 122.6, cap: [['преступная группа', 119.4], ['особо крупный', 120.6], ['размер', 120.8]]}
+];
+const SW = 430;
+function stepH(i, w){ return STEPS[i].h * eOutBack(prog(w, STEPS[i].rise, .9), 1.2); }
+function heat(w){ let n = 0; STEPS.forEach((s, i) => { n += ss(prog(w, s.rise, 1.5)); }); return clamp((n - 1)/3); }
+function camG(t){
+  const w = t - 50.93;
+  const foc = [{w: 96.0, i: .55}, {w: 98.6, i: 1}, {w: 106.4, i: 2}, {w: 117.9, i: 3}];
+  let fi = .55; foc.forEach((f, k) => { if (k) fi += (f.i - foc[k-1].i) * eIO3(prog(w, f.w, 1.3)); });
+  const cx = -930 + SW/2 + fi*470;
+  const i0 = Math.floor(fi), i1 = Math.min(3, i0 + 1);
+  const top = FLOOR - lerp(STEPS[i0].h, STEPS[i1].h, fi - i0);
+  const over = eIO3(prog(w, 123.9, 2.2));
+  const sink = eIn3(prog(w, 126.75, 1.4));
+  const zf = -1350, sF = FOC/(-zf), mid = (top + FLOOR)/2 - 40, cyF = top - 260;
+  const lyF = -(mid - cyF)*sF;
+  return {x: lerp(cx + 70, 110, over) + 40*Math.sin(w*.3), y: lerp(cyF, -120, over) + 30*Math.sin(w*.25) + 600*sink, z: lerp(zf, -2150, over) + whip(t,'G') - 200*sink,
+          roll: .008*Math.sin(w*.35) + .02*Math.sin(Math.PI*clamp(fi % 1)), fz: 0, dof: .006, ly: lerp(lyF, -30, over)};
+}
+function face(pts, fill, stroke){
+  const P = pts.map(p => proj(...p)); if (P.some(p => !p)) return;
+  ctx.beginPath(); P.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+}
+function drawStairs(t, a, w){
+  const hk = heat(w); const tint = mixC([217,179,108], [214,70,52], hk);
+  const order = [0,1,2,3].sort((p, q) => Math.abs(STEPS[q].x0 + SW/2 - CAM.x) - Math.abs(STEPS[p].x0 + SW/2 - CAM.x));
+  // floor glow
+  obj(0, FLOOR, 200, a, k => { k.scale(1, .25); const g = k.createRadialGradient(0,0,0,0,0,1500); g.addColorStop(0, rgba(tint, .22)); g.addColorStop(1, rgba(tint, 0)); k.fillStyle = g; k.fillRect(-1600,-1600,3200,3200); }, {noDof: true});
+  for (const i of order) {
+    const S = STEPS[i]; const h = stepH(i, w); if (h < 1) continue;
+    const x0 = S.x0, x1 = S.x0 + SW, top = FLOOR - h;
+    ctx.save(); ctx.globalAlpha = a;
+    if (CAM.x < x0) face([[x0, top, 0], [x0, top, SD], [x0, FLOOR, SD], [x0, FLOOR, 0]], '#0e121a');
+    if (CAM.x > x1) face([[x1, top, 0], [x1, top, SD], [x1, FLOOR, SD], [x1, FLOOR, 0]], '#0e121a');
+    const pt = proj(x0, top, 0), pb = proj(x0, FLOOR, 0);
+    if (CAM.y < top) face([[x0, top, 0], [x1, top, 0], [x1, top, SD], [x0, top, SD]], rgba(mixC([46,54,74], tint, .35), 1));
+    if (pt && pb) {
+      const g = ctx.createLinearGradient(0, pt.y, 0, pb.y); g.addColorStop(0, '#242c3d'); g.addColorStop(1, '#0c1017');
+      face([[x0, top, 0], [x1, top, 0], [x1, FLOOR, 0], [x0, FLOOR, 0]], g);
+      // glowing top edge
+      const pr = proj(x1, top, 0);
+      if (pr) { ctx.save(); ctx.strokeStyle = rgba(mixC([243,215,154], tint, hk*.8), 1); ctx.lineWidth = 3; ctx.shadowColor = rgba(tint, .9); ctx.shadowBlur = 18; ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pr.x, pr.y); ctx.stroke(); ctx.restore(); }
+    }
+    ctx.restore();
+    // captions on front face
+    S.cap.forEach(([s, ct], j) => {
+      const p = prog(w, ct, .45); if (p <= 0) return;
+      const y = top + 62 + j*44; if (y > FLOOR - 14) return;
+      obj(x0 + 28, y + 14*(1 - eOut3(p)), -1, a*clamp(p*2), k => txt(k, s, 0, 0, {size: /^(здоровью|потерпевшего|в помещение|размер)$/.test(s) ? 31 : 34, w: /^(здоровью|потерпевшего|в помещение|размер)$/.test(s) ? 500 : 700, color: /^(здоровью|потерпевшего|в помещение|размер)$/.test(s) ? '#cfc8b8' : WHITE}));
+    });
+    // number
+    const np = prog(w, S.nt, .55);
+    if (np > 0) obj(x0 + SW/2, top - 54, 120, a*clamp(np*3), k => {
+      const sc = 1 + .9*(1 - eOutBack(np, 1.4)); k.scale(sc, sc);
+      txt(k, S.num, 22, 0, {size: 118, fam: 'PF', w: 900, align: 'right', color: goldGrad(k, 118), glow: 26*hk + 10, glowC: rgba(tint, .7)});
+      txt(k, 'лет', 34, 0, {size: 34, w: 700, align: 'left', color: WHITE});
+    }, {blur: (1 - eOut3(np))*10});
+  }
+}
+function sceneG(t, a){
+  const w = t - 50.93; const c = camG(t); worldBegin(c); ctx.globalAlpha = a;
+  const hk = heat(w); const tint = mixC([217,179,108], [214,70,52], hk);
+  floorGrid(FLOOR, a, tint);
+  drawDust(t, a);
+  drawStairs(t, a, w);
+  // header (world, high above)
+  const ha = ss(prog(w, 96.3, .7)) * (1 - ss(prog(w, 126.6, .6)));
+  ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha = a*ha;
+  txt(ctx, 'ЛИШЕНИЕ СВОБОДЫ', W/2, 160, {size: 22, w: 800, ls: 10, align: 'center', color: rgba(mixC([243,215,154], tint, .6), 1)});
+  txt(ctx, 'с конфискацией имущества', W/2, 194, {size: 22, w: 500, ls: 1, align: 'center', color: MUTED});
+}
+
+// ============================================================ SCENE H — conclusion
+function camH(t){
+  const w = t - 50.93; const sh = Math.exp(-Math.max(0, w - 134.35)*6) * (w > 134.35 ? 1 : 0);
+  return {x: 30*Math.sin(w*.22), y: 10*Math.sin(w*.3), z: -1150 + 150*ss(prog(w, 127, 18)) + 120*eIO3(prog(w, 144.6, 5)), roll: .007*Math.sin(w*.27) + .004*sh*Math.sin(w*70), fz: lerp(0, 0, 0), dof: .012, ly: 0,
+          sx: sh*12*Math.sin(w*83), sy: sh*9*Math.cos(w*61)};
+}
+function sceneH(t, a){
+  const w = t - 50.93; const c = camH(t); worldBegin(c, c.sx, c.sy); ctx.globalAlpha = a;
+  drawDust(t, a);
+  const p1out = ss(prog(w, 131.4, .8));
+  flyText('Разбой —', 0, -150, 600*p1out, w, 127.1, {size: 96, fam: 'PF', w: 900, stg: .04, dur: .6, dz: -500, rot: .2, color: 'gold', alpha: a*(1 - p1out)});
+  const lay1 = layout('серьёзное уголовное правонарушение', 72, 'PF', 700, 1600, 90, 'center');
+  obj(0, -20, 600*p1out, a*(1 - p1out), k => drawPara(k, lay1, wordTimes(lay1, 128.6, 130.6), w, {size: 72, fam: 'PF', w: 700, color: WHITE, hi: new Set([0]), under: true}));
+  // 15 years
+  const p2out = eIO3(prog(w, 137.3, 1.2));
+  const vis2 = ss(prog(w, 131.9, .5));
+  obj(0, -330 + 0*p2out, 900*p2out, a*vis2*(1 - p2out*.85), k => txt(k, 'В КАЗАХСТАНЕ', 0, 0, {size: 26, w: 700, ls: 12, align: 'center', color: MUTED}));
+  const cp = prog(w, 133.6, .8);
+  if (cp > 0) {
+    const n = Math.min(15, Math.round(lerp(3, 15, eOut3(cp))));
+    const land = prog(w, 134.35, .5);
+    obj(60, 70 - 80*p2out, 900*p2out, a*clamp(cp*3)*(1 - p2out*.8), k => {
+      const s = 1 + .35*(1 - eOutBack(land, 2)); k.scale(s, s);
+      txt(k, 'до', -260, -40, {size: 80, fam: 'PF', w: 700, align: 'right', color: WHITE});
+      txt(k, String(n), 0, 60, {size: 400, fam: 'PF', w: 900, align: 'center', color: goldGrad(k, 400), glow: 50*clamp(land*2), glowC: 'rgba(230,120,70,.55)'});
+      txt(k, 'ЛЕТ ЛИШЕНИЯ СВОБОДЫ', 0, 195, {size: 40, w: 800, ls: 12, align: 'center', color: WHITE});
+    }, {blur: (1 - eOut3(cp))*8});
+  }
+  // closing message
+  const p3out = ss(prog(w, 144.5, .6));
+  const lay2 = layout('Насилие ради чужого имущества', 82, 'PF', 900, 1700, 100, 'center');
+  obj(0, -80, 500*p3out - 100, a*(1 - p3out), k => drawPara(k, lay2, wordTimes(lay2, 139.0, 142.0), w, {size: 82, fam: 'PF', w: 900, color: WHITE, under: false}));
+  const lay3 = layout('= серьёзная уголовная ответственность', 52, 'IN', 700, 1700, 70, 'center');
+  obj(0, 30, 500*p3out - 100, a*(1 - p3out), k => drawPara(k, lay3, wordTimes(lay3, 142.2, 144.0), w, {size: 52, fam: 'IN', w: 700, color: GOLD2, hi: new Set([1,2,3]), hiColor: GOLD2, under: true}));
+  // thanks
+  flyText('Спасибо за внимание!', 0, -40, 0, w, 144.85, {size: 120, fam: 'PF', w: 900, stg: .035, dur: .7, dz: -600, rot: .2, color: 'white', alpha: a});
+  const lp = eIO3(prog(w, 145.7, 1.0));
+  obj(0, 30, 0, a*clamp(lp*3), k => { const g = k.createLinearGradient(-420,0,420,0); g.addColorStop(0,'rgba(217,179,108,0)'); g.addColorStop(.5,GOLD2); g.addColorStop(1,'rgba(217,179,108,0)'); k.fillStyle = g; k.fillRect(-420*lp, -1.5, 840*lp, 3); });
+  obj(0, 100, 0, a*ss(prog(w, 146.0, .8)), k => { txt(k, TL.author, 0, 0, {size: 36, w: 600, align: 'center', color: WHITE}); txt(k, TL.group.toUpperCase(), 0, 44, {size: 22, w: 600, ls: 6, align: 'center', color: GOLD}); });
+}
+
+// ============================================================ frame
+function tintFor(t){
+  const w = t - 50.93;
+  if (t >= TL.scenes.G[0] - .3 && t < TL.scenes.H[0] + 1.5) return mixC([217,179,108], [214,70,52], heat(w));
+  return [217,179,108];
+}
+async function renderSample(t){
+  ctx = work.getContext('2d');
+  const inC = t >= TL.scenes.C[0] && t < TL.scenes.C[1];
+  background(t, tintFor(t), inC ? 0 : 1);
+  const keys = ['A','B','C','D','E','F','G','H'];
+  let hudKey = null, hudA = 0;
+  for (const k of keys) {
+    const a = sceneAlpha(k, t); if (a <= 0.001) continue;
+    if (k === 'A') sceneA(t, a);
+    else if (k === 'B') sceneB(t, a);
+    else if (k === 'C') await sceneC(t, a);
+    else if (k === 'D') sceneD(t, a);
+    else if (k === 'E') sceneE(t, a);
+    else if (k === 'F') await sceneF(t, a);
+    else if (k === 'G') sceneG(t, a);
+    else if (k === 'H') sceneH(t, a);
+    if (a > hudA) { hudA = a; hudKey = k; }
+  }
+  if (t > 31.2 && t < TL.ktkStart) await monitorFlyIn(t);
+  finish(t);
+  hud(t, hudKey, hudA * (hudKey === 'B' ? ss(prog(t, 14.3, .6)) * (1 - ss(prog(t, 31.0, .3))) : 1));
+  subtitles(t);
+  grainPass(t);
+  // global fades
+  const fin = ss(prog(t, 0, .6)), fout = 1 - ss(prog(t, TL.duration - 1.4, 1.3));
+  const f = Math.min(fin, fout);
+  if (f < 1) { ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha = 1; ctx.fillStyle = `rgba(0,0,0,${1 - f})`; ctx.fillRect(0,0,W,H); }
+}
+// motion-blur sample count
+const FAST = [[2.2, 3.2], [31.2, 32.45], [82.8, 83.9], [W2T(42.9), W2T(44.5)], [W2T(68.2), W2T(70)], [W2T(89.4), W2T(90.9)], [W2T(133.5), W2T(134.9)], [W2T(144.8), W2T(146)], [W2T(126.6), W2T(128.6)]];
+function camAt(t){
+  for (const [k, f] of [['A',camA],['B',camB],['D',camD],['E',camE],['F',camF],['G',camG],['H',camH]]) { const [s, e] = TL.scenes[k]; if (t >= s && t < e) return f(t); }
+  return null;
+}
+function nSamples(t){
+  const dt = 1/FPS; const a = camAt(t - dt/2), b = camAt(t + dt/2);
+  let m = 0;
+  if (a && b) { const s = FOC/Math.max(200, -a.z); m = (Math.abs(b.x - a.x) + Math.abs(b.y - a.y))*s + Math.abs(b.z - a.z)*.5 + Math.abs(b.roll - a.roll)*900; }
+  for (const [s, e] of TL.scenes ? Object.values(TL.scenes) : []) { if (Math.abs(t - s) < .5 && s > 0) m = Math.max(m, 30); }
+  for (const [s, e] of FAST) if (t >= s && t <= e) m = Math.max(m, 18);
+  return Math.max(1, Math.min(7, Math.ceil(m/5)));
+}
+window.renderFrame = async function(i){
+  const t = i / FPS;
+  const n = nSamples(t);
+  if (n === 1) { await renderSample(t); mctx.drawImage(work, 0, 0); return 1; }
+  const shutter = .5 / FPS;
+  for (let k = 0; k < n; k++) {
+    const ts = t + (k/(n - 1) - .5) * shutter;
+    await renderSample(ts);
+    actx.globalAlpha = 1/(k + 1); actx.drawImage(work, 0, 0);
+  }
+  mctx.drawImage(acc, 0, 0);
+  return n;
+};
+window.ready = (async () => {
+  TL = await (await fetch('timeline.json')).json();
+  await Promise.all(['900 40px PF','700 40px PF','400 40px IN','500 40px IN','600 40px IN','700 40px IN','800 40px IN'].map(f => document.fonts.load(f, 'АБВабв123')));
+  await loadImg('assets/article.jpg');
+  return TL.duration;
+})();
+</script>
+</body>
+</html>
