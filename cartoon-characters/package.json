@@ -1,0 +1,24 @@
+{
+  "name": "cartoon-characters",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Риг четырёх персонажей мультсериала (React + SVG, готово для Remotion)",
+  "scripts": {
+    "build:preview": "esbuild preview/render.tsx --bundle --platform=node --format=cjs --outfile=preview/.build/render.cjs --jsx=automatic --log-level=warning",
+    "preview": "npm run build:preview && node preview/.build/render.cjs measure && node preview/measure.cjs && node preview/.build/render.cjs && node preview/shoot.cjs",
+    "video": "esbuild preview/video.tsx --bundle --platform=node --format=cjs --outfile=preview/.build/video.cjs --jsx=automatic --log-level=warning && node preview/.build/video.cjs && node preview/video.cjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.7",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.25.0",
+    "remotion": "^4.0.547",
+    "typescript": "^5.9.0"
+  }
+}
