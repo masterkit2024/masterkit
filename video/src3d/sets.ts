@@ -551,7 +551,7 @@ export const streetSet = (which: "s8" | "scream"): Set3D => {
   const nyam = textCard("ням", { w: 1.0, h: 0.42, color: PAL.pink }); s.add(nyam.card.mesh);
   const u = 1.85 / 576;
   const MX = -0.7;
-  const handX = MX + 180 * u, handY = 409.5 * u;
+  const handX = MX + 182.5 * u, handY = 350.8 * u;
   return {
     scene: s,
     update: (t) => {
@@ -570,7 +570,7 @@ export const streetSet = (which: "s8" | "scream"): Set3D => {
       const close = t >= T.close8;
       man.set({ x: MX, z: 0, gray: true, pose: close ? "lost" : "holdcone", face: close ? "scream" : "neutral", hand: t < T.drop8 ? "cone" : close ? "coneDown" : "coneEmpty", t });
       hero.set({ x: px, z: 0.15, pose: t < T.dash8 ? "idle" : !crouching ? "run" : eat ? "eat" : "crouch", t, flip: true });
-      const headY = (465 - 110) * (1.8 / 576);
+      const headY = (430 - 90) * (1.8 / 576);
       const by0 = handY + 27 * u;
       ball.visible = t >= T.drop8 && !eat;
       ball.position.set(handX + 0.03, t < T.drop8 ? by0 : lerp(by0, headY + 0.05, clamp((t - T.drop8) / (T.eat8 - T.drop8))), 0.12);
