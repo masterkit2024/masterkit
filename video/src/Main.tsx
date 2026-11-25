@@ -59,7 +59,7 @@ const buildGroups = (): Group[] => {
 };
 const GROUPS = buildGroups();
 
-const Subs: React.FC<{ t: number }> = ({ t }) => {
+export const Subs: React.FC<{ t: number }> = ({ t }) => {
   const g = GROUPS.find((x) => t >= x.s - 0.05 && t <= x.e);
   if (!g) return null;
   // no subtitle over the meme freeze & scream title (already big on screen)
