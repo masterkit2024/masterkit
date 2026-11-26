@@ -244,25 +244,10 @@ const DUR=1;
 function scene(t){
   ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
   const cx=W/2,cy=H/2;
-  // цветные лучи
-  ctx.save();ctx.translate(cx,cy);
-  for(let i=0;i<18;i++){const a=i*Math.PI*2/18-.1;ctx.fillStyle=PAL[i%6]+'30';ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,620,a,a+Math.PI/18);ctx.closePath();ctx.fill();}
+  ctx.save();ctx.translate(cx,cy+540);ctx.scale(4.3,4.3);
+  ctx.shadowColor=CORAL+'73';ctx.shadowBlur=40;ctx.shadowOffsetY=12;ctx.fillStyle=CORAL;
+  personPath();ctx.fill();ctx.beginPath();ctx.arc(0,-132,33,0,6.283);ctx.fill();
   ctx.restore();
-  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,420);g.addColorStop(0,'#ffffffff');g.addColorStop(.55,'#ffffffcc');g.addColorStop(1,'#ffffff00');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  // радужное кольцо
-  const cg=ctx.createConicGradient(0,cx,cy);PAL.concat([PAL[0]]).forEach((c,i)=>cg.addColorStop(i/6,c));
-  ctx.strokeStyle=cg;ctx.lineWidth=30;ctx.beginPath();ctx.arc(cx,cy,445,0,6.283);ctx.stroke();
-  // точки орбиты
-  for(let i=0;i<24;i++){const a=i*Math.PI/12;ctx.fillStyle=PAL[i%6];ctx.beginPath();ctx.arc(cx+Math.cos(a)*385,cy+Math.sin(a)*385,7,0,6.283);ctx.fill();}
-  // герой: голова и плечи, подмигивает
-  ctx.save();ctx.beginPath();ctx.arc(cx,cy,430,0,6.283);ctx.clip();ctx.translate(cx,cy+470);ctx.scale(4.3,4.3);
-  heroX({x:0,y:0,color:CORAL,mood:'happy',eyes:'wink',look:0},.2);ctx.restore();
-  // искры и сердечки
-  ctx.save();ctx.translate(cx+255,cy-240);star(0,0,46,.2);ctx.fillStyle=YELLOW;ctx.shadowColor=YELLOW;ctx.shadowBlur=30;ctx.fill();ctx.restore();
-  ctx.save();ctx.translate(cx-290,cy-150);star(0,0,26,-.3);ctx.fillStyle=MINT;ctx.fill();ctx.restore();
-  ctx.fillStyle=CORAL;heartPath(cx+300,cy+30,30);ctx.fill();
-  icon('note',cx-285,cy+70,40,VIOLET,0);
-  icon('sun',cx-150,cy-320,36,ORANGE,.3);
 }
 window.renderFrame=t=>{ctx=MAIN;MAIN.setTransform(1,0,0,1,0,0);MAIN.filter='none';MAIN.globalAlpha=1;scene(t);};
 window.DUR=DUR;
