@@ -2,7 +2,7 @@ import React from "react";
 import * as THREE from "three";
 import { AbsoluteFill, useCurrentFrame, delayRender, continueRender, staticFile } from "remotion";
 import { Engine, CamState } from "./engine";
-import { Set3D, kitchenSet, labS2, labS3, labS5, labS6, roadSet, shopSet, streetSet, showerSet, squareSet, clamp, lerp, pr, eo, eob, rnd } from "./sets";
+import { Set3D, setStyle, kitchenSet, labS2, labS3, labS5, labS6, roadSet, shopSet, streetSet, showerSet, squareSet, clamp, lerp, pr, eo, eob, rnd } from "./sets";
 import { C, W, H, Txt, Title, StepPlate, Stamp, Toggle, popS } from "../src/lib";
 import { Subs } from "../src/Main";
 import { T } from "../src/timing";
@@ -33,6 +33,7 @@ const cache: Partial<Record<SceneId, Set3D>> = {};
 const getSet = (id: SceneId) => (cache[id] ??= MAKERS[id]());
 
 let engine: Engine | null = null;
+let SUN = false;
 const projCam = new THREE.PerspectiveCamera(40, W / H, 0.1, 400);
 const project = (cs: CamState, p: THREE.Vector3) => {
   projCam.fov = cs.fov ?? 40; projCam.position.copy(cs.pos); projCam.up.set(0, 1, 0); projCam.lookAt(cs.look);
@@ -53,6 +54,19 @@ const BigFace: React.FC<{ r: number }> = ({ r }) => (
   </g>
 );
 
+const LightPlate: React.FC<{ t: number; a: number; label: string; on: number }> = ({ t, a, label, on }) => {
+  const k = eo(pr(t, a, 0.3));
+  const w = 0.85 * W, h = 0.08 * H;
+  return (
+    <g transform={`translate(${W / 2} ${lerp(-h, 0.075 * H, k)})`}>
+      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={36} fill="#FFF6E0" stroke="#241726" strokeWidth={8} />
+      <Txt x={-w / 2 + 44} y={0} size={50} anchor="start" color="#241726">{label}</Txt>
+      <Toggle x={w / 2 - 110} y={0} on={on} />
+    </g>
+  );
+};
+const Plate: React.FC<{ t: number; a: number; label: string; on: number }> = (p) => (SUN ? <LightPlate {...p} /> : <StepPlate {...p} />);
+
 const Overlay: React.FC<{ id: SceneId; t: number; cs: CamState }> = ({ id, t, cs }) => {
   const els: React.ReactNode[] = [];
   if (id === "s1") {
@@ -64,16 +78,16 @@ const Overlay: React.FC<{ id: SceneId; t: number; cs: CamState }> = ({ id, t, cs
     els.push(<Title key="t2" t={t} a={T.tired1} y={0.1} size={76} color={C.red} lines={["ЧЕРЕЗ 5 ЧАСОВ ПОЖАЛЕЛ"]} />);
   }
   if (id === "s2") els.push(<Stamp key="st" t={t} a={T.stamp2} x={0.5 * W} y={0.32 * H} />);
-  if (id === "s3") els.push(<StepPlate key="p" t={t} a={T.s3} label="ШАГ 1/3 · ЗВУК" on={lerp(1, 0, pr(t, T.deaf3, 0.15))} />);
+  if (id === "s3") els.push(<Plate key="p" t={t} a={T.s3} label="ШАГ 1/3 · ЗВУК" on={lerp(1, 0, pr(t, T.deaf3, 0.15))} />);
   if (id === "s4") {
-    els.push(<StepPlate key="p" t={t} a={T.s4} label="ШАГ 2/3 · ВОЗДУХ" on={1} />);
+    els.push(<Plate key="p" t={t} a={T.s4} label="ШАГ 2/3 · ВОЗДУХ" on={1} />);
     const spd = t < T.walk4 ? 0 : t < T.fast4 ? 5 : Math.round(lerp(5, 500, eo(pr(t, T.fast4, 0.8))));
     els.push(<Txt key="sp" x={0.5 * W} y={0.2 * H} size={120} color={C.yellow} stroke={8} strokeColor="#241726">{`${spd} км/ч`}</Txt>);
     if (t >= T.fast4 && t < T.wall4)
       for (let i = 0; i < 12; i++) { const ph = ((t - T.fast4) * 2.2 + rnd(i)) % 1; els.push(<rect key={"l" + i} x={lerp(W + 100, -300, ph)} y={0.36 * H + rnd(i + 3) * 0.4 * H} width={220 + rnd(i + 7) * 160} height={8} rx={4} fill="#fff" opacity={0.8} />); }
     els.push(<Stamp key="st" t={t} a={T.stamp4} x={0.72 * W} y={0.34 * H} scale={0.6} />);
   }
-  if (id === "s5") els.push(<StepPlate key="p" t={t} a={T.s5} label="ШАГ 3/3 · МОЗГ" on={1} />);
+  if (id === "s5") els.push(<Plate key="p" t={t} a={T.s5} label="ШАГ 3/3 · МОЗГ" on={1} />);
   if (id === "s6") {
     const r = eo(pr(t, T.color6, 0.5)) * 2400;
     els.push(
@@ -113,8 +127,8 @@ const Overlay: React.FC<{ id: SceneId; t: number; cs: CamState }> = ({ id, t, cs
   if (id === "s11") {
     const plate = (a: number, x: number, text: string, color: string, k: string) => t >= a && (
       <g key={k} transform={`translate(${x} ${0.1 * H}) scale(${popS(t, a, 0.15)})`}>
-        <rect x={-230} y={-60} width={460} height={120} rx={26} fill={C.panel} stroke={color} strokeWidth={6} />
-        <Txt x={0} y={2} size={56} color={color}>{text}</Txt>
+        <rect x={-230} y={-60} width={460} height={120} rx={26} fill={SUN ? "#FFF6E0" : C.panel} stroke={SUN ? "#241726" : color} strokeWidth={SUN ? 8 : 6} />
+        <Txt x={0} y={2} size={56} color={SUN ? (color === C.yellow ? "#E0503A" : "#241726") : color}>{text}</Txt>
       </g>
     );
     els.push(plate(T.world11, 0.27 * W, "МИР: 3 МИН", "#C9CDD8", "p1"));
@@ -129,7 +143,9 @@ const Overlay: React.FC<{ id: SceneId; t: number; cs: CamState }> = ({ id, t, cs
   return <>{els}</>;
 };
 
-export const Main3D: React.FC = () => {
+export const Main3D: React.FC<{ look?: "dark" | "sunny" }> = ({ look = "dark" }) => {
+  setStyle(look as "dark" | "sunny");
+  SUN = look === "sunny";
   const frame = useCurrentFrame();
   const t = frame / 30;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);

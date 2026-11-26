@@ -31,6 +31,10 @@ const camKeys = (t: number, keysIn: Key[]): CamState => {
   };
 };
 
+export let STYLE: "dark" | "sunny" = "dark";
+export const setStyle = (v: "dark" | "sunny") => { STYLE = v; };
+const sunny = () => STYLE === "sunny";
+
 export interface Set3D { scene: THREE.Scene; update: (t: number) => { cam: CamState; post?: { sat?: number; bright?: number } } }
 
 const newScene = (preset: LightPreset, bg?: string, fogNear = 25, fogFar = 300) => {
@@ -208,7 +212,27 @@ export const kitchenSet = (which: "s1" | "s11"): Set3D => {
 // ====================================================================
 // LAB (S2, S3, S5, S6)
 // ====================================================================
+const cloud = (x: number, y: number, z: number, k = 1) => {
+  const g = new THREE.Group();
+  [[0, 0, 1.6], [1.6, -0.3, 1.2], [-1.6, -0.3, 1.2], [0.7, 0.7, 1.1], [-0.8, 0.5, 1.0]].forEach(([a, b, r]) => g.add(sphere(r * k, "#ffffff", { pos: [a * k, b * k, 0], shadow: false })));
+  g.position.set(x, y, z); return g;
+};
+const parkBase = () => {
+  const { s } = newScene("day", "#78b8ef", 30, 150);
+  s.fog = new THREE.Fog("#cfe3f5", 35, 150);
+  s.add(plane(120, 120, "#86c95f", { rot: [-Math.PI / 2, 0, 0], shadow: false }));
+  s.add(plane(5, 60, "#e3d3b0", { rot: [-Math.PI / 2, 0, 0], pos: [0, 0.01, -10], shadow: false }));
+  s.add(plane(60, 3.4, "#e3d3b0", { rot: [-Math.PI / 2, 0, 0], pos: [0, 0.012, -9], shadow: false }));
+  for (let i = 0; i < 12; i++) { const [c, r] = HOUSE_COLS[(i * 3) % 5]; s.add(house(-33 + i * 6, -20, 5.4, HEIGHTS[(i * 2) % 3], c, r)); }
+  const trees = [[-6, -5], [5.5, -6], [-4, -11], [7.5, -12], [-9, -8], [10, -7], [-12, -13], [12.5, -13]];
+  trees.forEach(([x, z], i) => s.add(cyl(0.16, 0.2, 1.6, "#6b4a2a", { pos: [x, 0.8, z] }), sphere(1.25 + rnd(i) * 0.4, i % 2 ? "#5aa84a" : "#4a9a50", { pos: [x, 2.5, z] }), sphere(0.9, "#66b552", { pos: [x + 0.6, 2.2, z + 0.3] })));
+  [[-3.2, -3.5], [3.4, -3.8]].forEach(([x, z]) => s.add(cyl(0.05, 0.07, 3.2, "#2f3440", { pos: [x, 1.6, z] }), sphere(0.2, "#fff3c0", { pos: [x, 3.3, z], mat: new THREE.MeshBasicMaterial({ color: "#fff3c0" }) })));
+  s.add(box(1.6, 0.08, 0.45, "#a8744a", { pos: [-4.6, 0.5, -2.6] }), box(0.08, 0.5, 0.4, "#5a4030", { pos: [-5.3, 0.25, -2.6] }), box(0.08, 0.5, 0.4, "#5a4030", { pos: [-3.9, 0.25, -2.6] }));
+  s.add(cloud(-10, 17, -40), cloud(8, 20, -45, 1.3), cloud(22, 15, -50), cloud(-24, 22, -55, 1.2));
+  return s;
+};
 const labBase = () => {
+  if (sunny()) return parkBase();
   const { s } = newScene("lab", "#0F1226", 20, 80);
   const ft = repeatTex(gridTex("#1B1F3D", "#3a4380", 4, 6), 20, 20);
   s.add(plane(80, 80, "#fff", { rot: [-Math.PI / 2, 0, 0], shadow: false, mat: new THREE.MeshToonMaterial({ map: ft, gradientMap: (toon("#fff") as any).gradientMap }) }));
@@ -290,10 +314,11 @@ export const labS5 = (): Set3D => {
   const s = labBase();
   // shaft
   const SX = -2.3, SH = 7;
-  [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]].forEach(([dx, dz]) => s.add(box(0.12, SH, 0.12, "#4a5290", { pos: [SX + dx, SH / 2, dz] })));
-  s.add(box(1.4, SH, 0.06, "#1E2342", { pos: [SX, SH / 2, -0.7] }));
-  for (let i = 1; i < 7; i++) s.add(box(1.5, 0.05, 0.05, "#4a5290", { pos: [SX, i, 0.7] }));
-  s.add(box(1.7, 0.12, 1.7, "#4a5290", { pos: [SX, SH, 0] }));
+  const PIL = sunny() ? "#e8a33d" : "#4a5290", BACK = sunny() ? "#f2e6c8" : "#1E2342";
+  [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]].forEach(([dx, dz]) => s.add(box(0.12, SH, 0.12, PIL, { pos: [SX + dx, SH / 2, dz] })));
+  s.add(box(1.4, SH, 0.06, BACK, { pos: [SX, SH / 2, -0.7] }));
+  for (let i = 1; i < 7; i++) s.add(box(1.5, 0.05, 0.05, PIL, { pos: [SX, i, 0.7] }));
+  s.add(box(1.7, 0.12, 1.7, PIL, { pos: [SX, SH, 0] }));
   s.add(box(1.4, 0.35, 1.4, "#3fbf6a", { pos: [SX, 0.17, 0] }));
   const lbl31 = textCard("31 м", { w: 1.2, h: 0.45, color: PAL.yellow }); lbl31.card.mesh.position.set(SX - 1.2, 3.6, 0.2); s.add(lbl31.card.mesh);
   s.add(box(0.04, SH, 0.04, "#9AA0B5", { pos: [SX - 1.2 + 0.55, SH / 2, 0] }));
@@ -305,7 +330,7 @@ export const labS5 = (): Set3D => {
   const third = textCard("≈ +⅓", { w: 1.8, h: 0.6, color: "#fff" }); third.card.mesh.position.set(3.1, 4.5, 0.3); s.add(third.card.mesh);
   // display
   s.add(box(1.9, 1.05, 0.25, "#111", { pos: [1.6, 2.85, 0] }));
-  s.add(box(0.12, 2.3, 0.12, "#4a5290", { pos: [1.6, 1.15, -0.05] }));
+  s.add(box(0.12, 2.3, 0.12, sunny() ? "#6b4a2a" : "#4a5290", { pos: [1.6, 1.15, -0.05] }));
   const screen = new Card(1.6, 0.8, 256, "none"); screen.mesh.position.set(1.6, 2.85, 0.13); s.add(screen.mesh);
   const tempo = textCard("✓ ОБЫЧНЫЙ ТЕМП", { w: 2.6, h: 0.34, color: "#cfd3e0" }); tempo.card.mesh.position.set(1.6, 3.65, 0.1); s.add(tempo.card.mesh);
   // brain
@@ -361,8 +386,8 @@ export const labS6 = (): Set3D => {
     const m = new THREE.Mesh(g, new THREE.MeshToonMaterial({ color: i % 3 ? PAL.red : "#fff", side: THREE.DoubleSide, gradientMap: (toon("#fff") as any).gradientMap })); m.userData.g = "ink"; s.add(m); return m;
   });
   // toggle panel
-  s.add(box(3.0, 2.1, 0.15, "#1E2342", { pos: [0, 2.7, -0.8] }));
-  s.add(box(0.12, 1.7, 0.12, "#3a4380", { pos: [0, 0.85, -0.85] }));
+  s.add(box(3.0, 2.1, 0.15, sunny() ? "#2f3d6b" : "#1E2342", { pos: [0, 2.7, -0.8] }));
+  s.add(box(0.12, 1.7, 0.12, sunny() ? "#6b4a2a" : "#3a4380", { pos: [0, 0.85, -0.85] }));
   const names = ["ЗВУК", "ВОЗДУХ", "МОЗГ"];
   const tg = names.map((n, i) => {
     const y = 3.35 - i * 0.62;
