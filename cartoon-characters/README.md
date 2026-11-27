@@ -79,3 +79,7 @@ node preview/check.cjs     # проверка: толщина контура, в
 - `baba-glyba-forms.png` — обычная форма и ярость (пунктиры — 125 % и 160 %);
 - `poses.png` — проверка рига: idle, wave, panic, point, shrug, think, walkA, fists;
 - `rig-test.mp4` — 4 с анимации на том же коде (без звука, это тест рига).
+
+## Скил
+
+Риг упакован в скил `cartoon-cast`: `.claude/skills/cartoon-cast/` в корне репозитория (подхватывается Claude Code в этом проекте) и архив `dist/cartoon-cast.zip` для загрузки в claude.ai. В скиле лежит копия `characters/`, `remotion/` и `preview/`: после правок здесь обновите и её (`cp -R characters/. ../.claude/skills/cartoon-cast/assets/characters/`) и пересоберите zip.
