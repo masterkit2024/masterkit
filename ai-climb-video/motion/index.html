@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Нож и верёвка — motion</title>
+<style>
+@font-face { font-family: 'Montserrat'; font-weight: 600; src: url(assets/fonts/montserrat-cyrillic-600-normal.woff2) format('woff2'); unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Montserrat'; font-weight: 600; src: url(assets/fonts/montserrat-latin-600-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: 'Montserrat'; font-weight: 700 800; src: url(assets/fonts/montserrat-cyrillic-800-normal.woff2) format('woff2'); unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Montserrat'; font-weight: 700 800; src: url(assets/fonts/montserrat-latin-800-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: 'Montserrat'; font-weight: 900; src: url(assets/fonts/montserrat-cyrillic-900-normal.woff2) format('woff2'); unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Montserrat'; font-weight: 900; src: url(assets/fonts/montserrat-latin-900-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: 'Unbounded'; font-weight: 700; src: url(assets/fonts/unbounded-cyrillic-700-normal.woff2) format('woff2'); unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Unbounded'; font-weight: 700; src: url(assets/fonts/unbounded-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: 'Unbounded'; font-weight: 900; src: url(assets/fonts/unbounded-cyrillic-900-normal.woff2) format('woff2'); unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Unbounded'; font-weight: 900; src: url(assets/fonts/unbounded-latin-900-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+html, body { margin: 0; background: #000; }
+canvas { display: block; width: 540px; height: 960px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="timeline.js"></script>
+<script src="engine.js"></script>
+<script src="figure.js"></script>
+<script src="world.js"></script>
+<script src="scenes.js"></script>
+<script src="main.js"></script>
+<script>
+// preview: ?t=12.3 renders one frame; ?play plays in real time
+const q = new URLSearchParams(location.search);
+READY.then(() => {
+  if (q.has('play')) { const t0 = performance.now() - (+q.get('play') || 0) * 1000; const loop = () => { renderAt((performance.now() - t0) / 1000); requestAnimationFrame(loop); }; loop(); }
+  else renderAt(+(q.get('t') || 0));
+});
+</script>
+</body>
+</html>
