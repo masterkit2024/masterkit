@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Превью 3:4</title>
+<style>
+@font-face { font-family: 'Montserrat'; font-weight: 700 800; src: url(assets/fonts/montserrat-cyrillic-800-normal.woff2) format('woff2'); unicode-range: U+0400-045F; }
+@font-face { font-family: 'Montserrat'; font-weight: 700 800; src: url(assets/fonts/montserrat-latin-800-normal.woff2) format('woff2'); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Montserrat'; font-weight: 900; src: url(assets/fonts/montserrat-cyrillic-900-normal.woff2) format('woff2'); unicode-range: U+0400-045F; }
+@font-face { font-family: 'Montserrat'; font-weight: 900; src: url(assets/fonts/montserrat-latin-900-normal.woff2) format('woff2'); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Unbounded'; font-weight: 900; src: url(assets/fonts/unbounded-cyrillic-900-normal.woff2) format('woff2'); unicode-range: U+0400-045F; }
+@font-face { font-family: 'Unbounded'; font-weight: 900; src: url(assets/fonts/unbounded-latin-900-normal.woff2) format('woff2'); unicode-range: U+0000-00FF; }
+html, body { margin: 0; background: #000; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920" style="display:none"></canvas>
+<canvas id="t" width="1080" height="1440"></canvas>
+<script src="timeline.js"></script>
+<script src="engine.js"></script>
+<script src="figure.js"></script>
+<script src="world.js"></script>
+<script src="scenes.js"></script>
+<script src="main.js"></script>
+<script>
+// 3:4 thumbnail: knife on the rope + the question + ChatGPT vs Grok
+window.makeThumb = async () => {
+  await READY;
+  const big = mkCanvas(W, H), g = big.getContext('2d');
+  drawKnifeMacro(g, 12.35);
+  const tc = document.getElementById('t'), c = tc.getContext('2d');
+  const TW = 1080, TH = 1440;
+  // crop: keep blade + rope, a touch zoomed
+  c.drawImage(big, 40, 20, 1000, 1333, 0, 0, TW, TH);
+  // darken top & bottom for type
+  let gr = c.createLinearGradient(0, 0, 0, TH);
+  gr.addColorStop(0, 'rgba(0,0,0,.82)'); gr.addColorStop(.3, 'rgba(0,0,0,.15)'); gr.addColorStop(.62, 'rgba(0,0,0,.1)'); gr.addColorStop(1, 'rgba(0,0,0,.88)');
+  c.fillStyle = gr; c.fillRect(0, 0, TW, TH);
+  // red danger glow behind the blade contact
+  c.save(); c.globalCompositeOperation = 'screen';
+  const rg = c.createRadialGradient(TW * .55, TH * .6, 0, TW * .55, TH * .6, 520);
+  rg.addColorStop(0, 'rgba(255,60,40,.35)'); rg.addColorStop(1, 'rgba(255,60,40,0)'); c.fillStyle = rg; c.fillRect(0, 0, TW, TH); c.restore();
+  // headline
+  c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  c.font = '800 46px Montserrat'; c.letterSpacing = '6px'; c.fillStyle = 'rgba(255,255,255,.9)';
+  c.fillText('ДРУГ ВИСИТ НАД ПРОПАСТЬЮ', TW / 2, 112);
+  c.letterSpacing = '0px';
+  const title = (txt, y, size, col, glow) => {
+    c.font = `900 ${size}px Unbounded`;
+    const w = c.measureText(txt).width; const s = Math.min(1, 980 / w);
+    c.save(); c.translate(TW / 2, y); c.scale(s, s);
+    c.lineJoin = 'round'; c.strokeStyle = 'rgba(0,0,0,.85)'; c.lineWidth = 18; c.strokeText(txt, 0, 0);
+    c.shadowColor = glow; c.shadowBlur = 40; c.fillStyle = col; c.fillText(txt, 0, 0); c.restore();
+  };
+  title('ПЕРЕРЕЖЕШЬ', 262, 150, '#ffffff', 'rgba(255,255,255,.5)');
+  title('ВЕРЁВКУ?', 410, 150, '#ff3b30', 'rgba(255,40,30,.8)');
+  // ChatGPT vs Grok badges
+  const badge = (x, img, name, verdict, col) => {
+    c.save(); c.translate(x, 1085);
+    c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 30; c.fillStyle = '#f5f7fa';
+    c.beginPath(); rrect(c, -150, -150, 300, 300, 44); c.fill(); c.shadowBlur = 0;
+    c.drawImage(img, -95, -122, 190, 190);
+    c.fillStyle = '#10141b'; c.font = '800 38px Montserrat'; c.fillText(name, 0, 118);
+    c.font = '900 64px Unbounded'; c.lineWidth = 12; c.strokeStyle = 'rgba(0,0,0,.85)'; c.strokeText(verdict, 0, 232);
+    c.shadowColor = col; c.shadowBlur = 26; c.fillStyle = col; c.fillText(verdict, 0, 232);
+    c.restore();
+  };
+  badge(TW / 2 - 250, IMG.chatgpt, 'ChatGPT', 'ДА', '#2ee59d');
+  badge(TW / 2 + 250, IMG.grok, 'Grok', 'НЕТ', '#ffb35c');
+  c.font = '900 86px Unbounded'; c.lineWidth = 14; c.strokeStyle = 'rgba(0,0,0,.9)'; c.strokeText('VS', TW / 2, 1117);
+  c.fillStyle = '#ffffff'; c.shadowColor = 'rgba(255,255,255,.6)'; c.shadowBlur = 24; c.fillText('VS', TW / 2, 1117); c.shadowBlur = 0;
+  return tc.toDataURL('image/png');
+};
+</script>
+</body>
+</html>
