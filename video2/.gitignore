@@ -8,3 +8,7 @@ sheets/
 *.log
 mix.wav
 pv/
+music/src.mp4
+music/music_raw.wav
+music/frames.png
+mix_music.wav
