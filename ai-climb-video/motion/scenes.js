@@ -520,12 +520,13 @@ function ridgeY(x) { // matches the ridge curve (approx)
 function drawSummit(c, t) {
   const u = inv(40.4, 43.6, t);
   drawSky(c, '#1c1438', '#c4567a', '#ffb27a', .7);
-  const sx = W * .5, sy = H * .63;
+  const sx = W * .56, sy = H * .4;
   const g = c.createRadialGradient(sx, sy, 0, sx, sy, 1000); g.addColorStop(0, 'rgba(255,240,210,1)'); g.addColorStop(.07, 'rgba(255,214,160,.95)'); g.addColorStop(.25, 'rgba(255,140,110,.4)'); g.addColorStop(1, 'rgba(255,120,120,0)');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   const cam = { x: 0, y: lerp(200, 330, E.out(u)), z: lerp(1.3, .95, E.out(u)), r: lerp(.02, 0, u) };
   drawMountains(c, cam, [['#7a4a78', '#b86a86', '#ffd0c0'], ['#55355f', '#86506f', '#ffc0b0'], ['#36234a', '#5b3a5c', '#ffb0a0']], '#e9919a', SH0);
   drawPuffs(c, cam, .45, CLOUDS.sea, WARP.at(t), '#ffc7b8', .85, SH0);
+  drawRays(c, sx, sy, .55, '#ffd0a8', t, 8, 1600);
   c.save(); camApply(c, cam, 1);
   // summit rock
   c.fillStyle = '#1d1226';
@@ -537,7 +538,6 @@ function drawSummit(c, t) {
   c.restore();
   drawPuffs(c, cam, 1.3, CLOUDS.fog, WARP.at(t), '#ffd2c2', .35, SH0, .4);
   drawSnow(c, t, cam, cam, { density: .25, wind: 120, fall: 40, col: 'rgba(255,230,220,1)', alpha: .5 });
-  drawRays(c, sx, sy, .5, '#ffd0a8', t, 8, 1600);
   vignette(c, .45, '#1a0a20');
 }
 

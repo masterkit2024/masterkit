@@ -19,7 +19,7 @@ await Promise.all([...Array(N).keys()].map(async w => {
   page.on('pageerror', e => console.log('pageerror', w, e.message));
   await page.goto(`http://localhost:${port}/index.html?t=0`); await page.evaluate(() => READY);
   const ff = spawn('ffmpeg', ['-v', 'error', '-y', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-',
-    '-c:v', 'libx264', '-preset', 'medium', '-crf', '14', '-pix_fmt', 'yuv420p', '-r', String(FPS), path.join(outDir, `seg${w}.mp4`)], { stdio: ['pipe', 'inherit', 'inherit'] });
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-r', String(FPS), path.join(outDir, `seg${w}.mp4`)], { stdio: ['pipe', 'inherit', 'inherit'] });
   for (let i = a; i < b; i++) {
     const data = await page.evaluate(t => { renderAt(t); return document.getElementById('c').toDataURL('image/jpeg', .96); }, i / FPS);
     const buf = Buffer.from(data.slice(data.indexOf(',') + 1), 'base64');
