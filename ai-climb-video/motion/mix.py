@@ -57,12 +57,31 @@ for n, x in [('narr', narr), ('gpt', gpt), ('grok1', grok1), ('grok2', grok2)]:
 # ---------------- music ----------------
 song, _ = librosa.load(os.path.join(M, 'music.mp3'), sr=SR, mono=False)
 mus = np.zeros((2, N))
-mAt, mOut = TL['musicAt'], TL['musicOut']
-seg1 = song[:, :T(mOut - mAt + .7)].copy()
-n_out = T(.7)
-seg1[:, -n_out:] *= np.linspace(1, 0, n_out) ** 2
-seg1[:, :T(.004)] *= np.linspace(0, 1, T(.004))
-mus[:, T(mAt):T(mAt) + seg1.shape[1]] += seg1[:, :N - T(mAt)]
+# Music from the very first frame: the intro is a repeating 8-bar phrase (11.100 s at ~173 BPM),
+# so we restart the intro once at a bar line (song 11.17 s -> 0.07 s) to gain 11.1 s, which keeps
+# the song's drop (22.215 s) exactly on Grok's "Я вцеплюсь" (video 29.0 s).
+LOOP_A, LOOP_P = 11.17, 11.10
+xf = T(.015)
+partA = song[:, :T(LOOP_A) + xf].copy(); partB = song[:, T(LOOP_A - LOOP_P):].copy()
+partA[:, -xf:] *= np.linspace(1, 0, xf); partB[:, :xf] *= np.linspace(0, 1, xf)
+ext = np.concatenate([partA[:, :-xf], partA[:, -xf:] + partB[:, :xf], partB[:, xf:]], axis=1)
+extDrop = TL['dropSong'] + LOOP_P
+off = extDrop - TL['drop']                      # ext time shown at video 0
+body = ext[:, T(off):T(off) + N].copy()
+body[:, :T(.25)] *= np.linspace(0, 1, T(.25))
+# under the last line the music keeps going, muffled (low-pass) and lower, instead of silence
+mOut = TL['musicOut']
+lpf = signal.sosfiltfilt(signal.butter(4, 380, 'low', fs=SR, output='sos'), body, axis=1)
+tt_ = np.arange(N) / SR
+k = np.interp(tt_, [mOut - .15, mOut + .35, 43.0, 43.25], [0, 1, 1, 1])       # crossfade to muffled
+g = np.interp(tt_, [mOut - .15, mOut + .35, 42.7, 43.25, 43.3], [1, .55, .55, 0, 0])
+g[tt_ < mOut - .15] = 1
+mix_b = (body * (1 - k) + lpf * k) * g
+mix_b[:, tt_ >= 43.3] = 0
+# finale: full-force drop hit, then sit the music under Grok's voice
+fin = np.interp(tt_, [0, 29.35, 29.8, 38.6, 38.75], [1, 1, .6, .6, 1])
+mix_b *= fin
+mus += mix_b
 # end card: the drop again
 endAt = TL['endDrop']
 s2 = song[:, T(TL['dropSong'] - .01):T(TL['dropSong'] - .01) + T(DUR - endAt + .01)].copy()
@@ -134,7 +153,7 @@ wind = wind * gust * lvl
 sfx[0] += wind * .17; sfx[1] += np.roll(wind, 900) * .17
 # drone before the music
 drn = (np.sin(2 * np.pi * 41.2 * tt) + .5 * np.sin(2 * np.pi * 61.7 * tt) + .25 * np.sin(2 * np.pi * 82.4 * tt)) * np.interp(tt, [0, 1.5, 6.5, 6.9], [0, .9, 1, 0])
-sfx += drn * .12
+sfx += drn * .04
 
 # --- intro
 put(whoosh(1.6, 300, 4000, 'swell'), 0.0, .5)                 # dive through clouds
@@ -209,10 +228,10 @@ fc = (
     "[1:a]highpass=f=120,equalizer=f=2600:t=q:w=1.2:g=3,aecho=0.85:0.5:11:0.22,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=2,volume=1.4[gpt];"
     "[2:a]rubberband=pitch=0.944:formant=preserved,highpass=f=60,equalizer=f=140:t=q:w=1:g=3,acompressor=threshold=-20dB:ratio=3.5:attack=6:release=120:makeup=2,volume=1.0[g1];"
     "[3:a]rubberband=pitch=0.944:formant=preserved,highpass=f=60,equalizer=f=140:t=q:w=1:g=3,acompressor=threshold=-20dB:ratio=3.5:attack=6:release=120:makeup=2,"
-    "aecho=0.8:0.55:70|140|230:0.22|0.14|0.08,volume=1.75[g2];"
+    "aecho=0.8:0.55:70|140|230:0.22|0.14|0.08,volume=2.1[g2];"
     "[narr][gpt][g1][g2]amix=inputs=4:normalize=0,pan=stereo|c0=c0|c1=c0,volume=1.45,asplit=2[vox][key];"
-    "[4:a]volume=0.40[mus0];"
-    "[mus0][key]sidechaincompress=threshold=0.035:ratio=4:attack=20:release=400:makeup=1[mus];"
+    "[4:a]volume=0.55[mus0];"
+    "[mus0][key]sidechaincompress=threshold=0.06:ratio=2.5:attack=20:release=350:makeup=1[mus];"
     "[5:a]volume=1.0[fx];"
     "[vox][mus][fx]amix=inputs=3:normalize=0,alimiter=limit=0.89:attack=3:release=60,loudnorm=I=-14:TP=-1.0:LRA=11,aresample=48000[out]"
 )

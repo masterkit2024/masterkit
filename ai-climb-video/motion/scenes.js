@@ -368,7 +368,7 @@ function drawHUD(c, t, S, FR, HR) {
   }
   // calculation readout
   const pct = Math.round(lerp(0, 100, E.io(inv(13.6, 15.3, t))));
-  const bx = 230, by = 290;
+  const bx = 262, by = 290;
   c.textAlign = 'left';
   c.fillText('РАСЧЁТ ИСХОДОВ', bx, by);
   c.globalAlpha = a * .35; c.fillRect(bx, by + 20, 600, 7); c.globalAlpha = a;

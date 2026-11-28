@@ -19,7 +19,7 @@ const SUB_STYLE = {
 };
 const SCENE_WORDS = new Set(['800', 'МЕТРОВ']);
 function drawSubs(c, t) {
-  const cx = panelK(t) > .5 ? 610 : 540, cy = 1250;
+  const cx = panelK(t) > .5 ? 636 : 540, cy = 1250;
   let cur = null;
   for (const w of TL.words) if (t >= w.t) cur = w;
   for (const w of cur ? [cur] : []) {
@@ -34,7 +34,7 @@ function drawSubs(c, t) {
     if (w.style === 'last') { spacing = lerp(2, 26, E.out(clamp((t - w.t) / 1.6))); }
     c.save(); c.translate(cx, cy); c.scale(s, s);
     c.font = `900 ${st.size}px Montserrat`; c.letterSpacing = spacing + 'px'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    const mw = c.measureText(w.text).width, maxW = cx > 560 ? 820 : 960;
+    const mw = c.measureText(w.text).width, maxW = cx > 560 ? 760 : 960;
     if (mw > maxW) c.scale(maxW / mw, maxW / mw);
     c.globalAlpha = a;
     c.shadowColor = 'rgba(0,0,0,.75)'; c.shadowBlur = 30; c.shadowOffsetY = 6;
@@ -48,10 +48,10 @@ function drawSubs(c, t) {
 
 // ---------- AI panel with marker circle ----------
 const PANEL = [['chatgpt', 'ChatGPT', '#10a37f'], ['grok', 'Grok', '#111111'], ['claude', 'Claude', '#d97757'], ['gemini', 'Gemini', '#3b7cf6'], ['deepseek', 'DeepSeek', '#4d6bfe']];
-function panelK(t) { return E.outExpo(inv(11.7, 12.15, t)) * (1 - E.in(inv(28.5, 28.85, t))); }
+function panelK(t) { return E.outExpo(inv(.35, .85, t)) * (1 - E.in(inv(43.0, 43.3, t))); }
 function drawPanel(c, t) {
   const k = panelK(t); if (k <= 0) return;
-  const x = lerp(-200, 26, k), y = 545, w = 152, rowH = 150, h = rowH * 5 + 20;
+  const x = lerp(-230, 24, k), y = 470, w = 184, rowH = 176, h = rowH * 5 + 20;
   c.save();
   c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = 40; c.shadowOffsetY = 10;
   c.fillStyle = 'rgba(250,251,253,.97)'; c.beginPath(); rrect(c, x, y, w, h, 30); c.fill();
@@ -61,22 +61,22 @@ function drawPanel(c, t) {
     const cy = y + 18 + i * rowH;
     const act = (i === active) ? (i === 0 ? sstep(12.72, 12.95, t) * (1 - sstep(22.7, 22.9, t)) : sstep(23.0, 23.25, t)) : 0;
     const sc = 1 + act * .08 + act * .03 * Math.sin(t * 6);
-    c.save(); c.translate(x + w / 2, cy + 58); c.scale(sc, sc);
-    c.drawImage(IMG[img], -44, -44, 88, 88); c.restore();
-    c.fillStyle = col; c.font = `800 ${name.length > 7 ? 21 : 25}px Montserrat`; c.textAlign = 'center';
-    c.fillText(name, x + w / 2, cy + 132);
+    c.save(); c.translate(x + w / 2, cy + 70); c.scale(sc, sc);
+    c.drawImage(IMG[img], -54, -54, 108, 108); c.restore();
+    c.fillStyle = col; c.font = `800 ${name.length > 7 ? 25 : 30}px Montserrat`; c.textAlign = 'center';
+    c.fillText(name, x + w / 2, cy + 156);
   });
   // hand-drawn red marker circle
   const circ = (i, p, at) => {
     if (p <= 0) return;
-    const cx = x + w / 2, cy = y + 18 + i * rowH + 72;
-    c.save(); c.strokeStyle = '#e3262b'; c.lineWidth = 6.5; c.lineCap = 'round';
+    const cx = x + w / 2, cy = y + 18 + i * rowH + 84;
+    c.save(); c.strokeStyle = '#e3262b'; c.lineWidth = 8; c.lineCap = 'round';
     c.shadowColor = 'rgba(227,38,43,.5)'; c.shadowBlur = 10;
     c.beginPath();
     const a0 = -2.2, sweep = TAU * 1.08 * p;
     for (let j = 0; j <= 80; j++) {
       const a = a0 + sweep * j / 80, wob = 1 + .045 * Math.sin(a * 3 + at) + .02 * j / 80;
-      const px = cx + Math.cos(a) * 86 * wob, py = cy + Math.sin(a) * 82 * wob;
+      const px = cx + Math.cos(a) * 104 * wob, py = cy + Math.sin(a) * 98 * wob;
       j ? c.lineTo(px, py) : c.moveTo(px, py);
     }
     c.stroke(); c.restore();
